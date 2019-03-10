@@ -1,0 +1,36 @@
+<html>
+  <head>
+    <meta content="text/html;charset=utf-8" http-equiv="Content-Type"/>
+  </head>
+  <body>
+
+    <div id="webgl-water-tutorial"> </div>
+
+    <script src='/webgl_water_tutorial.js'></script>
+
+    <script>
+    window.addEventListener('load', function () {
+      window.wasm_bindgen('/app.wasm')
+        .then(function () {
+          // Start our rust application. You can find `WebClient` in `src/lib.rs`
+          const webClient = new window.wasm_bindgen.WebClient()
+          webClient.start()
+
+          let time = Date.now();
+          function render () {
+            const dt = Date.now() - time
+
+            webClient.update(dt)
+            webClient.render()
+            window.requestAnimationFrame(render)
+
+            time = Date.now()
+          }
+
+          render()
+        })
+    })
+    </script>
+
+  </body>
+</html>
