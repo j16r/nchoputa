@@ -3,6 +3,7 @@ name = "nchoputa"
 version = "0.1.0"
 authors = ["John Barker <jebarker@gmail.com>"]
 edition = "2018"
+build = "build.rs"
 
 [dependencies]
 actix-web = "0.7.18"

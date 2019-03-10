@@ -6,13 +6,12 @@
 
     <div id="main"> </div>
 
-    <script src='/viewer.js'></script>
+    <script src='/s/viewer.js'></script>
 
     <script>
     window.addEventListener('load', function () {
-      window.wasm_bindgen('/viewer.wasm')
+      window.wasm_bindgen('/s/viewer_bg.wasm')
         .then(function () {
-          // Start our rust application. You can find `WebClient` in `src/lib.rs`
           const webClient = new window.wasm_bindgen.WebClient()
           webClient.start()
 
