@@ -6,4 +6,4 @@ edition = "2018"
 
 [dependencies]
 actix-web = "0.7.18"
-lib = { path = './lib' }
+viewer = { path = './viewer' }
