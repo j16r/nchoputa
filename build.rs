@@ -9,5 +9,10 @@ fn main() {
               "--no-typescript",
               "--browser",
               "--no-modules"])
+        .args(&["--keep-debug", "--debug", "--no-demangle"])
+        .status().unwrap();
+
+    Command::new("wasm-gc")
+        .args(&["./static/viewer_bg.wasm"])
         .status().unwrap();
 }

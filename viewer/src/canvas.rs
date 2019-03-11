@@ -7,7 +7,7 @@ use wasm_bindgen::JsValue;
 use web_sys::WebGlRenderingContext as GL;
 use web_sys::*;
 
-pub static APP_DIV_ID: &'static str = "webgl-water-tutorial";
+pub static APP_DIV_ID: &'static str = "main";
 
 pub static CANVAS_WIDTH: i32 = 512;
 pub static CANVAS_HEIGHT: i32 = 512;
@@ -17,7 +17,7 @@ pub fn create_webgl_context(app: Rc<App>) -> Result<WebGlRenderingContext, JsVal
 
     let gl: WebGlRenderingContext = canvas.get_context("webgl")?.unwrap().dyn_into()?;
 
-    gl.clear_color(0.0, 0.0, 0.0, 1.0);
+    gl.clear_color(1.0, 1.0, 1.0, 1.0);
     gl.enable(GL::DEPTH_TEST);
 
     Ok(gl)
