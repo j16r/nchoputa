@@ -9,9 +9,6 @@ use web_sys::*;
 
 pub static APP_DIV_ID: &'static str = "main";
 
-pub static CANVAS_WIDTH: i32 = 512;
-pub static CANVAS_HEIGHT: i32 = 512;
-
 pub fn create_webgl_context(app: Rc<App>) -> Result<WebGlRenderingContext, JsValue> {
     let canvas = init_canvas(app)?;
 
@@ -29,8 +26,8 @@ fn init_canvas(app: Rc<App>) -> Result<HtmlCanvasElement, JsValue> {
 
     let canvas: HtmlCanvasElement = document.create_element("canvas").unwrap().dyn_into()?;
 
-    canvas.set_width(CANVAS_WIDTH as u32);
-    canvas.set_height(CANVAS_HEIGHT as u32);
+    canvas.style().set_property("width", "100%")?;
+    canvas.style().set_property("height", "100%")?;
 
     attach_mouse_down_handler(&canvas, Rc::clone(&app))?;
     attach_mouse_up_handler(&canvas, Rc::clone(&app))?;
@@ -50,7 +47,8 @@ fn init_canvas(app: Rc<App>) -> Result<HtmlCanvasElement, JsValue> {
         }
     };
 
-    app_div.style().set_property("display", "flex")?;
+    app_div.style().set_property("width", "100%")?;
+    app_div.style().set_property("height", "100%")?;
     app_div.append_child(&canvas)?;
 
     Ok(canvas)

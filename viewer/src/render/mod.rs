@@ -1,61 +1,132 @@
-use self::framebuffer::*;
 use crate::app::State;
-use crate::canvas::{CANVAS_HEIGHT, CANVAS_WIDTH};
-use web_sys::WebGlRenderingContext as GL;
+use js_sys::WebAssembly;
+use nalgebra::{Matrix4, Perspective3};
+use wasm_bindgen::JsCast;
 use web_sys::*;
+use web_sys::WebGlRenderingContext as GL;
+//use web_sys::console;
 
-pub static WATER_TILE_Y_POS: f32 = 0.0;
-
-mod framebuffer;
 mod render_trait;
 
-struct Vao(js_sys::Object);
-
 pub struct WebRenderer {
-    #[allow(unused)]
-    depth_texture_ext: Option<js_sys::Object>,
-    refraction_framebuffer: Framebuffer,
-    reflection_framebuffer: Framebuffer,
+    shader: WebGlProgram,
+    buffer: WebGlBuffer,
+    vertex_position: i32,
+    uniform_project_matrix: WebGlUniformLocation,
+    uniform_model_view_matrix: WebGlUniformLocation
 }
 
 impl WebRenderer {
-    pub fn new(gl: &WebGlRenderingContext) -> WebRenderer {
-        let depth_texture_ext = gl
-            .get_extension("WEBGL_depth_texture")
-            .expect("Depth texture extension");
+    pub fn new(gl: &WebGlRenderingContext, program: WebGlProgram) -> WebRenderer {
 
-        let oes_vao_ext = gl
-            .get_extension("OES_vertex_array_object")
-            .expect("Get OES vao ext")
-            .expect("OES vao ext");
+        // Create the shape (a square)
+        let buffer = gl.create_buffer().unwrap();
+        gl.bind_buffer(GL::ARRAY_BUFFER, Some(&buffer));
+        let positions = [
+            -1.0,  1.0,
+            1.0,  1.0,
+            -1.0, -1.0,
+            1.0, -1.0,
+        ];
+        
+        let memory_buffer = wasm_bindgen::memory()
+            .dyn_into::<WebAssembly::Memory>()
+            .unwrap()
+            .buffer();
 
-        let refraction_framebuffer = WebRenderer::create_refraction_framebuffer(&gl).unwrap();
-        let reflection_framebuffer = WebRenderer::create_reflection_framebuffer(&gl).unwrap();
+        let data_location = positions.as_ptr() as u32 / 4;
+
+        let data_array = js_sys::Float32Array::new(&memory_buffer)
+            .subarray(data_location, data_location + positions.len() as u32);
+
+        gl.buffer_data_with_array_buffer_view(GL::ARRAY_BUFFER, &data_array, GL::STATIC_DRAW);
+
+        let vertex_position = gl.get_attrib_location(&program, "aVertexPosition");
+
+        let uniform_project_matrix = gl.get_uniform_location(&program, "uProjectionMatrix").unwrap();
+        let uniform_model_view_matrix = gl.get_uniform_location(&program, "uModelViewMatrix").unwrap();
+
+        console::log_1(&format!("uniform_project_matrix {:#?}", uniform_project_matrix).into());
 
         WebRenderer {
-            depth_texture_ext,
-            refraction_framebuffer,
-            reflection_framebuffer,
+            shader: program,
+            buffer,
+            vertex_position,
+            uniform_project_matrix,
+            uniform_model_view_matrix,
         }
     }
 
-    pub fn render(&mut self, gl: &WebGlRenderingContext, state: &State) {
-        gl.clear_color(0.53, 0.8, 0.98, 1.);
+    pub fn render(&mut self, gl: &WebGlRenderingContext, _state: &State) {
+        gl.clear_color(0.0, 0.0, 0.0, 1.);
+        gl.clear_depth(1.);
+        gl.enable(GL::DEPTH_TEST);
+        gl.depth_func(GL::LEQUAL);
+
+        // Clear the canvas
+
         gl.clear(GL::COLOR_BUFFER_BIT | GL::DEPTH_BUFFER_BIT);
 
-        let above = 1000000.0;
-        // Position is positive instead of negative for.. mathematical reasons..
-        let clip_plane = [0., 1., 0., above];
+        let field_of_view = 45. * std::f32::consts::PI / 180.;   // in radians
+        let aspect = 1600. / 1200.; // gl.canvas.clientWidth / gl.canvas.clientHeight;
+        let z_near = 0.1;
+        let z_far = 100.0;
 
-        //self.render_refraction_fbo(gl, state, assets);
-        //self.render_reflection_fbo(gl, state, assets);
+        let projection = Perspective3::new(aspect, field_of_view, z_near, z_far);
+        let mut projection_matrix = projection.as_matrix().to_owned();
 
-        gl.viewport(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+        // TODO: How to do the translate with the vector below to produce the view_matrix below
+        //let mut view_matrix = Matrix4::repeat(0.);
+        //view_matrix += Translation3::new(-0., 0., -6.);
 
-        //self.render_water(gl, state);
-        //self.render_meshes(gl, state, assets, clip_plane, false);
+        let mut view_matrix = Matrix4::new(
+            1., 0., 0., 0.,
+            0., 1., 0., 0.,
+            0., 0., 1., 0.,
+            0., 0., -6., 1.);
 
-        //self.render_refraction_visual(gl, state);
-        //self.render_reflection_visual(gl, state);
+        // Tell WebGL how to pull out the positions from the position
+        // buffer into the vertexPosition attribute.
+
+        {
+            let num_components = 2;  // pull out 2 values per iteration
+            let normalize = false;  // don't normalize
+            let stride = 0;         // how many bytes to get from one set of values to the next
+            // 0 = use type and numComponents above
+            let offset = 0;         // how many bytes inside the buffer to start from
+
+            gl.bind_buffer(GL::ARRAY_BUFFER, Some(&self.buffer));
+            gl.vertex_attrib_pointer_with_i32(
+                self.vertex_position as u32,
+                num_components,
+                GL::FLOAT,
+                normalize,
+                stride,
+                offset);
+            gl.enable_vertex_attrib_array(
+                self.vertex_position as u32);
+        }
+
+        // Tell WebGL to use our program when drawing
+
+        gl.use_program(Some(&self.shader));
+
+        // Set the shader uniforms
+
+        gl.uniform_matrix4fv_with_f32_array(
+            Some(&self.uniform_project_matrix),
+            false,
+            projection_matrix.as_mut_slice());
+
+        gl.uniform_matrix4fv_with_f32_array(
+            Some(&self.uniform_model_view_matrix),
+            false,
+            view_matrix.as_mut_slice());
+
+        {
+            let offset = 0;
+            let vertex_count = 4;
+            gl.draw_arrays(GL::TRIANGLE_STRIP, offset, vertex_count);
+        }
     }
 }
