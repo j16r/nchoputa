@@ -12,8 +12,8 @@ pub struct WebRenderer {
     shader: WebGlProgram,
     buffer: WebGlBuffer,
     vertex_position: i32,
-    uniform_project_matrix: WebGlUniformLocation,
-    uniform_model_view_matrix: WebGlUniformLocation
+    uniform_project_matrix: Option<WebGlUniformLocation>,
+    uniform_model_view_matrix: Option<WebGlUniformLocation>
 }
 
 impl WebRenderer {
@@ -22,7 +22,7 @@ impl WebRenderer {
         // Create the shape (a square)
         let buffer = gl.create_buffer().unwrap();
         gl.bind_buffer(GL::ARRAY_BUFFER, Some(&buffer));
-        let positions = [
+        let positions : [f32; 8] = [
             -1.0,  1.0,
             1.0,  1.0,
             -1.0, -1.0,
@@ -39,14 +39,18 @@ impl WebRenderer {
         let data_array = js_sys::Float32Array::new(&memory_buffer)
             .subarray(data_location, data_location + positions.len() as u32);
 
+        console::log_1(&data_array);
+
         gl.buffer_data_with_array_buffer_view(GL::ARRAY_BUFFER, &data_array, GL::STATIC_DRAW);
+        gl.vertex_attrib_pointer_with_i32(0, 4, GL::FLOAT, false, 0, 0);
+        gl.enable_vertex_attrib_array(0);
+
+        console::log_1(&data_array);
 
         let vertex_position = gl.get_attrib_location(&program, "aVertexPosition");
 
-        let uniform_project_matrix = gl.get_uniform_location(&program, "uProjectionMatrix").unwrap();
-        let uniform_model_view_matrix = gl.get_uniform_location(&program, "uModelViewMatrix").unwrap();
-
-        console::log_1(&format!("uniform_project_matrix {:#?}", uniform_project_matrix).into());
+        let uniform_project_matrix = gl.get_uniform_location(&program, "uProjectionMatrix");
+        let uniform_model_view_matrix = gl.get_uniform_location(&program, "uModelViewMatrix");
 
         WebRenderer {
             shader: program,
@@ -68,7 +72,7 @@ impl WebRenderer {
         gl.clear(GL::COLOR_BUFFER_BIT | GL::DEPTH_BUFFER_BIT);
 
         let field_of_view = 45. * std::f32::consts::PI / 180.;   // in radians
-        let aspect = 1600. / 1200.; // gl.canvas.clientWidth / gl.canvas.clientHeight;
+        let aspect = 1.; // 1600. / 1200.; // gl.canvas.clientWidth / gl.canvas.clientHeight;
         let z_near = 0.1;
         let z_far = 100.0;
 
@@ -113,20 +117,28 @@ impl WebRenderer {
 
         // Set the shader uniforms
 
-        gl.uniform_matrix4fv_with_f32_array(
-            Some(&self.uniform_project_matrix),
-            false,
-            projection_matrix.as_mut_slice());
+        let mut projection_matrix_data = [0.; 16];
+        projection_matrix_data.copy_from_slice(projection_matrix.as_slice());
 
         gl.uniform_matrix4fv_with_f32_array(
-            Some(&self.uniform_model_view_matrix),
+            self.uniform_project_matrix.as_ref(),
             false,
-            view_matrix.as_mut_slice());
+            &mut projection_matrix_data);
+
+        let mut view_matrix_data = [0.; 16];
+        view_matrix_data.copy_from_slice(view_matrix.as_slice());
+
+        gl.uniform_matrix4fv_with_f32_array(
+            self.uniform_model_view_matrix.as_ref(),
+            false,
+            &mut view_matrix_data);
 
         {
             let offset = 0;
             let vertex_count = 4;
             gl.draw_arrays(GL::TRIANGLE_STRIP, offset, vertex_count);
         }
+
+        panic!();
     }
 }
