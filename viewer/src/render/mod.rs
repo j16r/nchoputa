@@ -1,12 +1,9 @@
-use crate::app::State;
 use js_sys::WebAssembly;
 use nalgebra::{Matrix4, Perspective3};
 use wasm_bindgen::JsCast;
 use web_sys::*;
 use web_sys::WebGlRenderingContext as GL;
 //use web_sys::console;
-
-mod render_trait;
 
 pub struct WebRenderer {
     shader: WebGlProgram,
@@ -39,11 +36,7 @@ impl WebRenderer {
         let data_array = js_sys::Float32Array::new(&memory_buffer)
             .subarray(data_location, data_location + positions.len() as u32);
 
-        console::log_1(&data_array);
-
         gl.buffer_data_with_array_buffer_view(GL::ARRAY_BUFFER, &data_array, GL::STATIC_DRAW);
-        gl.vertex_attrib_pointer_with_i32(0, 4, GL::FLOAT, false, 0, 0);
-        gl.enable_vertex_attrib_array(0);
 
         console::log_1(&data_array);
 
@@ -61,7 +54,7 @@ impl WebRenderer {
         }
     }
 
-    pub fn render(&mut self, gl: &WebGlRenderingContext, _state: &State) {
+    pub fn render(&mut self, gl: &WebGlRenderingContext) {
         gl.clear_color(0.0, 0.0, 0.0, 1.);
         gl.clear_depth(1.);
         gl.enable(GL::DEPTH_TEST);
@@ -77,13 +70,15 @@ impl WebRenderer {
         let z_far = 100.0;
 
         let projection = Perspective3::new(aspect, field_of_view, z_near, z_far);
-        let mut projection_matrix = projection.as_matrix().to_owned();
+        let projection_matrix = projection.as_matrix().to_owned();
+
+        //console::log_1(&format!("projection_matrix {:#?}", projection_matrix).into());
 
         // TODO: How to do the translate with the vector below to produce the view_matrix below
         //let mut view_matrix = Matrix4::repeat(0.);
         //view_matrix += Translation3::new(-0., 0., -6.);
 
-        let mut view_matrix = Matrix4::new(
+        let view_matrix = Matrix4::new(
             1., 0., 0., 0.,
             0., 1., 0., 0.,
             0., 0., 1., 0.,
@@ -117,15 +112,17 @@ impl WebRenderer {
 
         // Set the shader uniforms
 
-        let mut projection_matrix_data = [0.; 16];
+        let mut projection_matrix_data = [0.0_f32; 16];
         projection_matrix_data.copy_from_slice(projection_matrix.as_slice());
+
+        console::log_1(&format!("projection_matrix_data {:#?}", projection_matrix_data).into());
 
         gl.uniform_matrix4fv_with_f32_array(
             self.uniform_project_matrix.as_ref(),
             false,
             &mut projection_matrix_data);
 
-        let mut view_matrix_data = [0.; 16];
+        let mut view_matrix_data = [0.0_f32; 16];
         view_matrix_data.copy_from_slice(view_matrix.as_slice());
 
         gl.uniform_matrix4fv_with_f32_array(
