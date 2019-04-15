@@ -18,6 +18,14 @@ pub fn start() -> Result<(), JsValue> {
         .unwrap()
         .dyn_into::<WebGlRenderingContext>()?;
 
+    let handler = move |event: web_sys::DomWindowResizeEventDetail| {
+        canvas.set_width(event.width());
+        canvas.set_height(event.height());
+    };
+    let handler = Closure::wrap(Box::new(handler) as Box<FnMut(_)>);
+    canvas.add_event_listener_with_callback("resize", handler.as_ref().unchecked_ref())?;
+    handler.forget();
+
     let vert_shader = compile_shader(
         &context,
         WebGlRenderingContext::VERTEX_SHADER,
