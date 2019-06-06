@@ -2,15 +2,36 @@ use console_error_panic_hook;
 use js_sys::WebAssembly;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
-use web_sys::*;
-use web_sys::{WebGlProgram, WebGlRenderingContext, WebGlShader};
+use web_sys::{self, WebGlProgram, WebGlRenderingContext, WebGlShader, console};
+use std::cell::RefCell;
+use std::rc::Rc;
+
+fn window() -> web_sys::Window {
+    web_sys::window().expect("no global `window` exists")
+}
+
+fn document() -> web_sys::Document {
+    window()
+        .document()
+        .expect("should have a document on window")
+}
+
+fn request_animation_frame(f: &Closure<FnMut()>) {
+    window()
+        .request_animation_frame(f.as_ref().unchecked_ref())
+        .expect("should register `requestAnimationFrame` OK");
+}
+
+struct Dimensions {
+    width: u32,
+    height: u32
+}
 
 #[wasm_bindgen(start)]
 pub fn start() -> Result<(), JsValue> {
     console_error_panic_hook::set_once();
 
-    let document = web_sys::window().unwrap().document().unwrap();
-    let canvas = document.get_element_by_id("main").unwrap();
+    let canvas = document().get_element_by_id("main").unwrap();
     let canvas: web_sys::HtmlCanvasElement = canvas.dyn_into::<web_sys::HtmlCanvasElement>()?;
 
     let context = canvas
@@ -18,13 +39,33 @@ pub fn start() -> Result<(), JsValue> {
         .unwrap()
         .dyn_into::<WebGlRenderingContext>()?;
 
+    let dim  = Rc::new(RefCell::new(None));
+
     let handler = move |event: web_sys::DomWindowResizeEventDetail| {
-        canvas.set_width(event.width());
-        canvas.set_height(event.height());
+        console::log_1(&"onresize".into());
+        *dim.borrow_mut() = Some(Dimensions{
+            width: window().inner_width().unwrap().as_f64().unwrap() as u32,
+            height: window().inner_height().unwrap().as_f64().unwrap() as u32,
+        });
+
+        canvas.set_width(window().inner_width().unwrap().as_f64().unwrap() as u32);
+        console::log_1(&format!("canvas.width {}", canvas.width()).into());
+        canvas.set_height(window().inner_height().unwrap().as_f64().unwrap() as u32);
+        console::log_1(&format!("canvas.height {}", canvas.height()).into());
     };
     let handler = Closure::wrap(Box::new(handler) as Box<FnMut(_)>);
-    canvas.add_event_listener_with_callback("resize", handler.as_ref().unchecked_ref())?;
+    window().add_event_listener_with_callback("resize", handler.as_ref().unchecked_ref())?;
     handler.forget();
+
+    let f = Rc::new(RefCell::new(None));
+    let g = f.clone();
+
+    *g.borrow_mut() = Some(Closure::wrap(Box::new(move || {
+        console::log_1(&"request_animation_frame".into());
+        request_animation_frame(f.borrow().as_ref().unwrap());
+    }) as Box<FnMut()>));
+    
+    request_animation_frame(g.borrow().as_ref().unwrap());
 
     let vert_shader = compile_shader(
         &context,

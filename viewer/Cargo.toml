@@ -19,8 +19,10 @@ wasm-bindgen = "=0.2.29"
 [dependencies.web-sys]
 version = "=0.3.6"
 features = [
+  'console',
   'CssStyleDeclaration',
   'Document',
+  'DomWindowResizeEventDetail',
   'Element',
   'Event',
   'EventTarget',
