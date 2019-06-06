@@ -7,7 +7,6 @@ fn main() {
 
     let source_wasm = format!("viewer/target/wasm32-unknown-unknown/{}/viewer.wasm", profile).to_string();
 
-    println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-changed={}", source_wasm);
     println!("cargo:rerun-if-changed=viewer/src/*.rs");
     println!("cargo:rerun-if-env-changed=PROFILE");
