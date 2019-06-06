@@ -47,8 +47,4 @@ features = [
   'WebGlVertexArrayObject',
   'WheelEvent',
   'Window',
-  'console',
 ]
-
-[profile.release]
-lto = true
