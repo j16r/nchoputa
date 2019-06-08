@@ -16,7 +16,7 @@ fn document() -> web_sys::Document {
         .expect("should have a document on window")
 }
 
-fn request_animation_frame(f: &Closure<FnMut()>) {
+fn request_animation_frame(f: &Closure<dyn FnMut()>) {
     window()
         .request_animation_frame(f.as_ref().unchecked_ref())
         .expect("should register `requestAnimationFrame` OK");
@@ -41,7 +41,7 @@ pub fn start() -> Result<(), JsValue> {
 
     let dim  = Rc::new(RefCell::new(None));
 
-    let handler = move |event: web_sys::DomWindowResizeEventDetail| {
+    let handler = move |_event: web_sys::DomWindowResizeEventDetail| {
         console::log_1(&"onresize".into());
         *dim.borrow_mut() = Some(Dimensions{
             width: window().inner_width().unwrap().as_f64().unwrap() as u32,
@@ -53,7 +53,7 @@ pub fn start() -> Result<(), JsValue> {
         canvas.set_height(window().inner_height().unwrap().as_f64().unwrap() as u32);
         console::log_1(&format!("canvas.height {}", canvas.height()).into());
     };
-    let handler = Closure::wrap(Box::new(handler) as Box<FnMut(_)>);
+    let handler = Closure::wrap(Box::new(handler) as Box<dyn FnMut(_)>);
     window().add_event_listener_with_callback("resize", handler.as_ref().unchecked_ref())?;
     handler.forget();
 
@@ -63,7 +63,7 @@ pub fn start() -> Result<(), JsValue> {
     *g.borrow_mut() = Some(Closure::wrap(Box::new(move || {
         console::log_1(&"request_animation_frame".into());
         request_animation_frame(f.borrow().as_ref().unwrap());
-    }) as Box<FnMut()>));
+    }) as Box<dyn FnMut()>));
     
     request_animation_frame(g.borrow().as_ref().unwrap());
 
