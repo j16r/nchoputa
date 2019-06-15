@@ -6,163 +6,203 @@ use web_sys::{self, WebGlProgram, WebGlRenderingContext, WebGlShader, console};
 use std::cell::RefCell;
 use std::rc::Rc;
 
+mod store;
+pub use self::store::*;
+
+/// Used to run the application from the web
+#[wasm_bindgen]
+pub struct Viewer {
+    app: Rc<App>,
+    gl: Rc<WebGlRenderingContext>,
+    canvas: Rc<web_sys::HtmlCanvasElement>,
+}
+
+pub struct App {
+    pub store: Rc<RefCell<Store>>,
+}
+
+impl App {
+    pub fn new() -> App {
+        let store = Rc::new(RefCell::new(Store::new()));
+        App{store: store}
+    }
+}
+
 fn window() -> web_sys::Window {
     web_sys::window().expect("no global `window` exists")
 }
 
 fn document() -> web_sys::Document {
-    window()
-        .document()
-        .expect("should have a document on window")
+    window().document().expect("should have a document on window")
 }
 
-fn request_animation_frame(f: &Closure<dyn FnMut()>) {
-    window()
-        .request_animation_frame(f.as_ref().unchecked_ref())
-        .expect("should register `requestAnimationFrame` OK");
-}
-
-struct Dimensions {
-    width: u32,
-    height: u32
-}
-
-#[wasm_bindgen(start)]
-pub fn start() -> Result<(), JsValue> {
-    console_error_panic_hook::set_once();
-
-    let canvas = document().get_element_by_id("main").unwrap();
-    let canvas: web_sys::HtmlCanvasElement = canvas.dyn_into::<web_sys::HtmlCanvasElement>()?;
-
-    let context = canvas
-        .get_context("webgl")?
-        .unwrap()
-        .dyn_into::<WebGlRenderingContext>()?;
-
-    let dim  = Rc::new(RefCell::new(None));
-
+fn register_resize_handler(app: Rc<App>) -> Result<(), JsValue> {
     let handler = move |_event: web_sys::DomWindowResizeEventDetail| {
-        console::log_1(&"onresize".into());
-        *dim.borrow_mut() = Some(Dimensions{
-            width: window().inner_width().unwrap().as_f64().unwrap() as u32,
-            height: window().inner_height().unwrap().as_f64().unwrap() as u32,
-        });
+        console::log_1(&format!(
+            "onresize ({}, {})",
+            window().inner_width().unwrap().as_f64().unwrap(),
+            window().inner_height().unwrap().as_f64().unwrap(),
+        ).into());
 
-        canvas.set_width(window().inner_width().unwrap().as_f64().unwrap() as u32);
-        console::log_1(&format!("canvas.width {}", canvas.width()).into());
-        canvas.set_height(window().inner_height().unwrap().as_f64().unwrap() as u32);
-        console::log_1(&format!("canvas.height {}", canvas.height()).into());
+        app.store.borrow_mut().msg(
+            &Msg::WindowResized(Dimensions{
+                width: window().inner_width().unwrap().as_f64().unwrap() as u32,
+                height: window().inner_height().unwrap().as_f64().unwrap() as u32,
+            })
+        );
     };
-    let handler = Closure::wrap(Box::new(handler) as Box<dyn FnMut(_)>);
-    window().add_event_listener_with_callback("resize", handler.as_ref().unchecked_ref())?;
-    handler.forget();
 
-    let f = Rc::new(RefCell::new(None));
-    let g = f.clone();
+    let closure = Closure::wrap(Box::new(handler) as Box<dyn FnMut(_)>);
+    window().add_event_listener_with_callback("resize", closure.as_ref().unchecked_ref())?;
+    closure.forget();
 
-    *g.borrow_mut() = Some(Closure::wrap(Box::new(move || {
-        console::log_1(&"request_animation_frame".into());
-        request_animation_frame(f.borrow().as_ref().unwrap());
-    }) as Box<dyn FnMut()>));
-    
-    request_animation_frame(g.borrow().as_ref().unwrap());
-
-    let vert_shader = compile_shader(
-        &context,
-        WebGlRenderingContext::VERTEX_SHADER,
-        r#"
-        attribute vec4 position;
-        void main() {
-            gl_Position = position;
-        }
-    "#,
-    )?;
-    let frag_shader = compile_shader(
-        &context,
-        WebGlRenderingContext::FRAGMENT_SHADER,
-        r#"
-        void main() {
-            gl_FragColor = vec4(1.0, 1.0, 1.0, 1.0);
-        }
-    "#,
-    )?;
-    let program = link_program(&context, &vert_shader, &frag_shader)?;
-    context.use_program(Some(&program));
-
-    let vertices: [f32; 9] = [-0.7, -0.7, 0.0, 0.7, -0.7, 0.0, 0.0, 0.7, 0.0];
-    let memory_buffer = wasm_bindgen::memory()
-        .dyn_into::<WebAssembly::Memory>()?
-        .buffer();
-    let vertices_location = vertices.as_ptr() as u32 / 4;
-    let vert_array = js_sys::Float32Array::new(&memory_buffer)
-        .subarray(vertices_location, vertices_location + vertices.len() as u32);
-
-    let buffer = context.create_buffer().ok_or("failed to create buffer")?;
-    context.bind_buffer(WebGlRenderingContext::ARRAY_BUFFER, Some(&buffer));
-    context.buffer_data_with_array_buffer_view(
-        WebGlRenderingContext::ARRAY_BUFFER,
-        &vert_array,
-        WebGlRenderingContext::STATIC_DRAW,
-    );
-    context.vertex_attrib_pointer_with_i32(0, 3, WebGlRenderingContext::FLOAT, false, 0, 0);
-    context.enable_vertex_attrib_array(0);
-
-    context.clear_color(0.0, 0.0, 0.0, 1.0);
-    context.clear(WebGlRenderingContext::COLOR_BUFFER_BIT);
-
-    context.draw_arrays(
-        WebGlRenderingContext::TRIANGLES,
-        0,
-        (vertices.len() / 3) as i32,
-    );
     Ok(())
 }
 
+#[wasm_bindgen]
+impl Viewer {
+
+    #[wasm_bindgen(constructor)]
+    pub fn new() -> Viewer {
+        console_error_panic_hook::set_once();
+
+        let canvas_el = document().get_element_by_id("main").unwrap();
+        let canvas: web_sys::HtmlCanvasElement = canvas_el.dyn_into::<web_sys::HtmlCanvasElement>()
+            .expect("failed converting canvas element to js-sys HtmlCanvasElement");
+
+        let gl = canvas
+            .get_context("webgl")
+            .expect("get context webbgl error")
+            .unwrap()
+            .dyn_into::<WebGlRenderingContext>()
+            .unwrap();
+
+        Viewer {
+            app: Rc::new(App::new()),
+            gl: Rc::new(gl),
+            canvas: Rc::new(canvas),
+        }
+    }
+    pub fn start(&mut self) -> Result<(), JsValue> {
+        register_resize_handler(Rc::clone(&self.app))?;
+
+        let vert_shader = compile_shader(
+            &self.gl,
+            WebGlRenderingContext::VERTEX_SHADER,
+            r#"
+            attribute vec4 position;
+            void main() {
+                gl_Position = position;
+            }
+        "#,
+        )?;
+        let frag_shader = compile_shader(
+            &self.gl,
+            WebGlRenderingContext::FRAGMENT_SHADER,
+            r#"
+            void main() {
+                gl_FragColor = vec4(1.0, 1.0, 1.0, 1.0);
+            }
+        "#,
+        )?;
+        let program = link_program(&self.gl, &vert_shader, &frag_shader)?;
+        self.gl.use_program(Some(&program));
+
+        Ok(())
+    }
+
+    pub fn render(&mut self) {
+        self.gl.clear_color(0.0, 0.0, 0.0, 1.0);
+        self.gl.clear(WebGlRenderingContext::COLOR_BUFFER_BIT);
+
+        let vertices: [f32; 9] = [-0.7, -0.7, 0.0, 0.7, -0.7, 0.0, 0.0, 0.7, 0.0];
+        let memory_buffer = wasm_bindgen::memory()
+            .dyn_into::<WebAssembly::Memory>()
+            .unwrap()
+            .buffer();
+        let vertices_location = vertices.as_ptr() as u32 / 4;
+        let vert_array = js_sys::Float32Array::new(&memory_buffer)
+            .subarray(vertices_location, vertices_location + vertices.len() as u32);
+
+        let buffer = self.gl.create_buffer().expect("failed to create buffer");
+        self.gl.bind_buffer(WebGlRenderingContext::ARRAY_BUFFER, Some(&buffer));
+        self.gl.buffer_data_with_array_buffer_view(
+            WebGlRenderingContext::ARRAY_BUFFER,
+            &vert_array,
+            WebGlRenderingContext::STATIC_DRAW,
+        );
+        self.gl.vertex_attrib_pointer_with_i32(0, 3, WebGlRenderingContext::FLOAT, false, 0, 0);
+        self.gl.enable_vertex_attrib_array(0);
+
+        self.gl.draw_arrays(
+            WebGlRenderingContext::TRIANGLES,
+            0,
+            (vertices.len() / 3) as i32,
+        );
+
+        let state = &self.app.store.borrow().state;
+
+        if self.canvas.width() != state.canvas_dimensions.width ||
+            self.canvas.height() != state.canvas_dimensions.height {
+            self.canvas.set_width(state.canvas_dimensions.width);
+            self.canvas.set_height(state.canvas_dimensions.height);
+        }
+        
+        self.gl.viewport(
+            0,
+            0,
+            state.canvas_dimensions.width as i32,
+            state.canvas_dimensions.height as i32,
+        );
+    }
+    
+}
+
 pub fn compile_shader(
-    context: &WebGlRenderingContext,
+    gl: &WebGlRenderingContext,
     shader_type: u32,
     source: &str,
 ) -> Result<WebGlShader, String> {
-    let shader = context
+    let shader = gl
         .create_shader(shader_type)
         .ok_or_else(|| String::from("Unable to create shader object"))?;
-    context.shader_source(&shader, source);
-    context.compile_shader(&shader);
+    gl.shader_source(&shader, source);
+    gl.compile_shader(&shader);
 
-    if context
+    if gl
         .get_shader_parameter(&shader, WebGlRenderingContext::COMPILE_STATUS)
         .as_bool()
         .unwrap_or(false)
     {
         Ok(shader)
     } else {
-        Err(context
+        Err(gl
             .get_shader_info_log(&shader)
             .unwrap_or_else(|| String::from("Unknown error creating shader")))
     }
 }
 
 pub fn link_program(
-    context: &WebGlRenderingContext,
+    gl: &WebGlRenderingContext,
     vert_shader: &WebGlShader,
     frag_shader: &WebGlShader,
 ) -> Result<WebGlProgram, String> {
-    let program = context
+    let program = gl
         .create_program()
         .ok_or_else(|| String::from("Unable to create shader object"))?;
 
-    context.attach_shader(&program, vert_shader);
-    context.attach_shader(&program, frag_shader);
-    context.link_program(&program);
+    gl.attach_shader(&program, vert_shader);
+    gl.attach_shader(&program, frag_shader);
+    gl.link_program(&program);
 
-    if context
+    if gl
         .get_program_parameter(&program, WebGlRenderingContext::LINK_STATUS)
         .as_bool()
         .unwrap_or(false)
     {
         Ok(program)
     } else {
-        Err(context
+        Err(gl
             .get_program_info_log(&program)
             .unwrap_or_else(|| String::from("Unknown error creating program object")))
     }

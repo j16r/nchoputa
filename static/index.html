@@ -1,7 +1,7 @@
 <html>
   <head>
-    <meta content="text/html;charset=utf-8" http-equiv="Content-Type"/>
-    <script src='/s/viewer.js'></script>
+    <meta content='text/html;charset=utf-8' http-equiv='Content-Type'/>
+    <script type='application/javascript' src='/s/viewer.js'></script>
     <style>
       body {
         border: 0;
@@ -17,17 +17,29 @@
     </style>
   </head>
   <body>
-    <canvas id="main"></canvas>
+    <canvas id='main'></canvas>
 
-    <script>
+    <script type='application/javascript'>
       window.addEventListener('load', function () {
         window.wasm_bindgen('/s/viewer_bg.wasm')
           .then(() => {
-              window.wasm_bindgen.start()
+              const viewer = new window.wasm_bindgen.Viewer()
+              viewer.start()
+
+              let time = Date.now()
+              const render = () => {
+                const dt = Date.now() - time
+
+                viewer.render()
+                window.requestAnimationFrame(render)
+
+                time = Date.now()
+              }
+
+              render()
           })
           .catch(console.error)
       })
     </script>
-
   </body>
 </html>

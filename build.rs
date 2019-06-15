@@ -21,14 +21,17 @@ fn main() {
         Command::new("wasm-bindgen")
             .args(&core_bindgen_args)
             .args(&["--keep-debug", "--debug", "--no-demangle"])
-            .status().unwrap();
+            .status()
+            .unwrap();
     } else {
         Command::new("wasm-bindgen")
             .args(&core_bindgen_args)
-            .status().unwrap();
+            .status()
+            .unwrap();
     }
 
     Command::new("wasm-gc")
         .args(&["static/viewer_bg.wasm"])
-        .status().unwrap();
+        .status()
+        .unwrap();
 }
