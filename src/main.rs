@@ -1,10 +1,24 @@
 extern crate actix_web;
-use actix_web::{server, App, http::Method, http::header, fs, HttpResponse};
+use actix_web::{
+    App,
+    fs,
+    http::header,
+    http::Method,
+    HttpRequest,
+    HttpResponse,
+    Result,
+    server,
+};
+
+fn favicon(_req: &HttpRequest) -> Result<fs::NamedFile> {
+    Ok(fs::NamedFile::open("static/favicon.ico")?)
+}
 
 fn main() {
     server::new(
         || App::new()
             .handler("/s", fs::StaticFiles::new("static").unwrap())
+            .resource("/favicon.ico", |r| r.f(favicon))
             .resource("/", |r| r.method(Method::GET).f(|req| {
                 println!("{:?}", req);
                 HttpResponse::Found()
