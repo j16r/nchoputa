@@ -1,13 +1,15 @@
 use console_error_panic_hook;
-use js_sys::WebAssembly;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 use web_sys::{self, WebGlProgram, WebGlRenderingContext, WebGlShader, console};
-use std::cell::RefCell;
 use std::rc::Rc;
 
 mod store;
-pub use self::store::*;
+mod app;
+mod render;
+
+use crate::app::App;
+use crate::store::{Msg, Dimensions};
 
 /// Used to run the application from the web
 #[wasm_bindgen]
@@ -15,17 +17,6 @@ pub struct Viewer {
     app: Rc<App>,
     gl: Rc<WebGlRenderingContext>,
     canvas: Rc<web_sys::HtmlCanvasElement>,
-}
-
-pub struct App {
-    pub store: Rc<RefCell<Store>>,
-}
-
-impl App {
-    pub fn new() -> App {
-        let store = Rc::new(RefCell::new(Store::new()));
-        App{store: store}
-    }
 }
 
 fn window() -> web_sys::Window {
@@ -112,34 +103,6 @@ impl Viewer {
     }
 
     pub fn render(&mut self) {
-        self.gl.clear_color(0.0, 0.0, 0.0, 1.0);
-        self.gl.clear(WebGlRenderingContext::COLOR_BUFFER_BIT);
-
-        let vertices: [f32; 9] = [-0.7, -0.7, 0.0, 0.7, -0.7, 0.0, 0.0, 0.7, 0.0];
-        let memory_buffer = wasm_bindgen::memory()
-            .dyn_into::<WebAssembly::Memory>()
-            .unwrap()
-            .buffer();
-        let vertices_location = vertices.as_ptr() as u32 / 4;
-        let vert_array = js_sys::Float32Array::new(&memory_buffer)
-            .subarray(vertices_location, vertices_location + vertices.len() as u32);
-
-        let buffer = self.gl.create_buffer().expect("failed to create buffer");
-        self.gl.bind_buffer(WebGlRenderingContext::ARRAY_BUFFER, Some(&buffer));
-        self.gl.buffer_data_with_array_buffer_view(
-            WebGlRenderingContext::ARRAY_BUFFER,
-            &vert_array,
-            WebGlRenderingContext::STATIC_DRAW,
-        );
-        self.gl.vertex_attrib_pointer_with_i32(0, 3, WebGlRenderingContext::FLOAT, false, 0, 0);
-        self.gl.enable_vertex_attrib_array(0);
-
-        self.gl.draw_arrays(
-            WebGlRenderingContext::TRIANGLES,
-            0,
-            (vertices.len() / 3) as i32,
-        );
-
         let state = &self.app.store.borrow().state;
 
         if self.canvas.width() != state.canvas_dimensions.width ||
@@ -148,14 +111,8 @@ impl Viewer {
             self.canvas.set_height(state.canvas_dimensions.height);
         }
         
-        self.gl.viewport(
-            0,
-            0,
-            state.canvas_dimensions.width as i32,
-            state.canvas_dimensions.height as i32,
-        );
+        self.app.render(&self.gl, state);
     }
-    
 }
 
 pub fn compile_shader(
