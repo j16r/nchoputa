@@ -9,5 +9,5 @@ build = "build.rs"
 members = ['viewer']
 
 [dependencies]
-actix-web = "0.7.18"
+actix-web = "0.7"
 viewer = { path = './viewer' }
