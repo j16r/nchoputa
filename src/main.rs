@@ -15,6 +15,7 @@ fn favicon(_req: &HttpRequest) -> Result<fs::NamedFile> {
 }
 
 fn main() {
+    println!("Listening on http://localhost:8999/ ...");
     server::new(
         || App::new()
             .handler("/s", fs::StaticFiles::new("static").unwrap())
