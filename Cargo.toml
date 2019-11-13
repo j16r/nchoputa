@@ -11,3 +11,4 @@ members = ['viewer']
 [dependencies]
 actix-web = "0.7"
 viewer = { path = './viewer' }
+wasm-bindgen-cli = "0.2"
