@@ -22,16 +22,16 @@ fn main() {
             .args(&core_bindgen_args)
             .args(&["--keep-debug", "--debug", "--no-demangle"])
             .status()
-            .unwrap();
+            .expect("error while running wasm-bindgen");
     } else {
         Command::new("wasm-bindgen")
             .args(&core_bindgen_args)
             .status()
-            .unwrap();
+            .expect("error while running wasm-bindgen");
     }
 
     Command::new("wasm-gc")
         .args(&["static/viewer_bg.wasm"])
         .status()
-        .unwrap();
+        .expect("error while running wasm-gc");
 }
