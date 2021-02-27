@@ -9,16 +9,15 @@ use actix_web::{
     HttpResponse,
     HttpServer,
     Result,
-    FromRequest,
     get,
     http::header,
     web,
 };
 
-// #[get("/favicon")]
-// async fn favicon(_req: &HttpRequest) -> Result<fs::NamedFile> {
-//     Ok(fs::NamedFile::open("static/favicon.ico")?)
-// }
+#[get("/favicon.ico")]
+async fn favicon() -> Result<fs::NamedFile> {
+    Ok(fs::NamedFile::open("static/favicon.ico")?)
+}
 
 #[actix_web::main]
 async fn main() -> io::Result<()> {
@@ -29,7 +28,7 @@ async fn main() -> io::Result<()> {
     HttpServer::new(
         || App::new()
             .service(fs::Files::new("/s", "static"))
-            // .service(favicon)
+            .service(favicon)
             .service(web::resource("/").route(web::get().to(|req: HttpRequest| {
                 println!("{:?}", req);
                 HttpResponse::Found()
