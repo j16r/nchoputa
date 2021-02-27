@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use web_sys::{self, WebGlRenderingContext};
+use web_sys::{self, WebGl2RenderingContext as GL};
 
 use crate::render::LineGraph;
 use crate::store::*;
@@ -18,7 +18,7 @@ impl App {
         App { store, lg }
     }
 
-    pub fn render(&self, gl: &WebGlRenderingContext, state: &State) {
+    pub fn render(&self, gl: &GL, state: &State) {
         gl.viewport(
             0,
             0,
@@ -26,8 +26,8 @@ impl App {
             state.canvas_dimensions.height as i32,
         );
 
-        gl.clear_color(0.0, 0.0, 0.0, 1.0);
-        gl.clear(WebGlRenderingContext::COLOR_BUFFER_BIT);
+        gl.clear_color(0.0, 1.0, 0.0, 1.0);
+        gl.clear(GL::COLOR_BUFFER_BIT);
 
         self.lg.render(gl);
     }

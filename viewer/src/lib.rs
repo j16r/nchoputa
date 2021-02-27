@@ -3,7 +3,7 @@ use std::rc::Rc;
 use tracing::info;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
-use web_sys::{self, WebGlProgram, WebGlRenderingContext, WebGlShader};
+use web_sys::{self, WebGlProgram, WebGl2RenderingContext as GL, WebGlShader};
 
 mod app;
 mod render;
@@ -16,7 +16,7 @@ use crate::store::{Dimensions, Msg};
 #[wasm_bindgen]
 pub struct Viewer {
     app: Rc<App>,
-    gl: Rc<WebGlRenderingContext>,
+    gl: Rc<GL>,
     canvas: Rc<web_sys::HtmlCanvasElement>,
 }
 
@@ -32,12 +32,6 @@ fn document() -> web_sys::Document {
 
 fn register_resize_handler(app: Rc<App>) -> Result<(), JsValue> {
     let handler = move |_event: web_sys::DomWindowResizeEventDetail| {
-        info!(
-            "onresize ({}, {})",
-            window().inner_width().unwrap().as_f64().unwrap(),
-            window().inner_height().unwrap().as_f64().unwrap(),
-        );
-
         app.store.borrow_mut().msg(&Msg::WindowResized(Dimensions {
             width: window().inner_width().unwrap().as_f64().unwrap() as u32,
             height: window().inner_height().unwrap().as_f64().unwrap() as u32,
@@ -66,14 +60,20 @@ impl Viewer {
             .expect("failed converting canvas element to js-sys HtmlCanvasElement");
 
         let gl = canvas
-            .get_context("webgl")
-            .expect("get context webbgl error")
+            .get_context("webgl2")
+            .expect("get context webgl2 error")
             .unwrap()
-            .dyn_into::<WebGlRenderingContext>()
+            .dyn_into::<GL>()
             .unwrap();
 
+        let app = Rc::new(App::new());
+        app.store.borrow_mut().msg(&Msg::WindowResized(Dimensions {
+            width: window().inner_width().unwrap().as_f64().unwrap() as u32,
+            height: window().inner_height().unwrap().as_f64().unwrap() as u32,
+        }));
+
         Viewer {
-            app: Rc::new(App::new()),
+            app,
             gl: Rc::new(gl),
             canvas: Rc::new(canvas),
         }
@@ -84,7 +84,7 @@ impl Viewer {
 
         let vert_shader = compile_shader(
             &self.gl,
-            WebGlRenderingContext::VERTEX_SHADER,
+            GL::VERTEX_SHADER,
             r#"
             attribute vec4 position;
             void main() {
@@ -94,7 +94,7 @@ impl Viewer {
         )?;
         let frag_shader = compile_shader(
             &self.gl,
-            WebGlRenderingContext::FRAGMENT_SHADER,
+            GL::FRAGMENT_SHADER,
             r#"
             void main() {
                 gl_FragColor = vec4(1.0, 1.0, 1.0, 1.0);
@@ -122,7 +122,7 @@ impl Viewer {
 }
 
 pub fn compile_shader(
-    gl: &WebGlRenderingContext,
+    gl: &GL,
     shader_type: u32,
     source: &str,
 ) -> Result<WebGlShader, String> {
@@ -133,7 +133,7 @@ pub fn compile_shader(
     gl.compile_shader(&shader);
 
     if gl
-        .get_shader_parameter(&shader, WebGlRenderingContext::COMPILE_STATUS)
+        .get_shader_parameter(&shader, GL::COMPILE_STATUS)
         .as_bool()
         .unwrap_or(false)
     {
@@ -146,7 +146,7 @@ pub fn compile_shader(
 }
 
 pub fn link_program(
-    gl: &WebGlRenderingContext,
+    gl: &GL,
     vert_shader: &WebGlShader,
     frag_shader: &WebGlShader,
 ) -> Result<WebGlProgram, String> {
@@ -159,7 +159,7 @@ pub fn link_program(
     gl.link_program(&program);
 
     if gl
-        .get_program_parameter(&program, WebGlRenderingContext::LINK_STATUS)
+        .get_program_parameter(&program, GL::LINK_STATUS)
         .as_bool()
         .unwrap_or(false)
     {

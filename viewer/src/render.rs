@@ -1,7 +1,6 @@
 use js_sys::WebAssembly;
-use tracing::trace;
 use wasm_bindgen::JsCast;
-use web_sys::{self, WebGlRenderingContext};
+use web_sys::{self, WebGl2RenderingContext as GL};
 
 pub struct LineGraph {
     vertices: js_sys::Float32Array,
@@ -25,21 +24,21 @@ impl LineGraph {
         }
     }
 
-    pub fn render(&self, gl: &WebGlRenderingContext) {
+    pub fn render(&self, gl: &GL) {
         let buffer = gl.create_buffer().expect("failed to create buffer");
-        gl.bind_buffer(WebGlRenderingContext::ARRAY_BUFFER, Some(&buffer));
+        gl.bind_buffer(GL::ARRAY_BUFFER, Some(&buffer));
         gl.buffer_data_with_array_buffer_view(
-            WebGlRenderingContext::ARRAY_BUFFER,
+            GL::ARRAY_BUFFER,
             &self.vertices,
-            WebGlRenderingContext::STATIC_DRAW,
+            GL::STATIC_DRAW,
         );
 
         gl.enable_vertex_attrib_array(0);
-        gl.vertex_attrib_pointer_with_i32(0, 3, WebGlRenderingContext::FLOAT, false, 0, 0);
+        gl.vertex_attrib_pointer_with_i32(0, 3, GL::FLOAT, false, 0, 0);
 
-        gl.clear_color(0.0, 0.0, 0.0, 1.0);
-        gl.clear(WebGlRenderingContext::COLOR_BUFFER_BIT);
+        // gl.clear_color(0.0, 0.0, 0.0, 1.0);
+        // gl.clear(GL::COLOR_BUFFER_BIT);
 
-        gl.draw_arrays(WebGlRenderingContext::TRIANGLES, 0, (self.count / 3) as i32);
+        gl.draw_arrays(GL::TRIANGLES, 0, (self.count / 3) as i32);
     }
 }

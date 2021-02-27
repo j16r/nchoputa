@@ -18,6 +18,7 @@ impl Store {
     }
 }
 
+#[derive(Debug)]
 pub struct State {
     pub canvas_dimensions: Dimensions,
 }
@@ -58,6 +59,7 @@ impl StateWrapper {
     }
 }
 
+#[derive(Debug)]
 pub struct Dimensions {
     pub width: u32,
     pub height: u32,
