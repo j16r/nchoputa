@@ -2672,6 +2672,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "tracing-wasm"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8ae741706df70547fca8715f74a8569677666e7be3454313af70f6e158034485"
+dependencies = [
+ "tracing",
+ "tracing-subscriber",
+ "wasm-bindgen",
+]
+
+[[package]]
 name = "trust-dns-proto"
 version = "0.19.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2860,6 +2871,8 @@ dependencies = [
  "console_error_panic_hook",
  "js-sys",
  "nalgebra",
+ "tracing",
+ "tracing-wasm",
  "wasm-bindgen",
  "web-sys",
 ]

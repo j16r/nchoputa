@@ -21,9 +21,9 @@
 
     <script type='application/javascript'>
       window.addEventListener('load', function () {
-        window.wasm_bindgen('/s/viewer_bg.wasm')
+        wasm_bindgen('/s/viewer_bg.wasm')
           .then(() => {
-              const viewer = new window.wasm_bindgen.Viewer()
+              const viewer = new wasm_bindgen.Viewer()
               viewer.start()
 
               let time = Date.now()

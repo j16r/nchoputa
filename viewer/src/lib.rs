@@ -1,8 +1,9 @@
 use console_error_panic_hook;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
-use web_sys::{self, WebGlProgram, WebGlRenderingContext, WebGlShader, console};
+use web_sys::{self, WebGlProgram, WebGlRenderingContext, WebGlShader};
 use std::rc::Rc;
+use tracing::info;
 
 mod store;
 mod app;
@@ -29,11 +30,10 @@ fn document() -> web_sys::Document {
 
 fn register_resize_handler(app: Rc<App>) -> Result<(), JsValue> {
     let handler = move |_event: web_sys::DomWindowResizeEventDetail| {
-        console::log_1(&format!(
-            "onresize ({}, {})",
+        info!("onresize ({}, {})",
             window().inner_width().unwrap().as_f64().unwrap(),
             window().inner_height().unwrap().as_f64().unwrap(),
-        ).into());
+        );
 
         app.store.borrow_mut().msg(
             &Msg::WindowResized(Dimensions{
@@ -56,6 +56,9 @@ impl Viewer {
     #[wasm_bindgen(constructor)]
     pub fn new() -> Viewer {
         console_error_panic_hook::set_once();
+        tracing_wasm::set_as_global_default();
+
+        info!("Starting viewer...");
 
         let canvas_el = document().get_element_by_id("main").unwrap();
         let canvas: web_sys::HtmlCanvasElement = canvas_el.dyn_into::<web_sys::HtmlCanvasElement>()
@@ -86,7 +89,7 @@ impl Viewer {
             void main() {
                 gl_Position = position;
             }
-        "#,
+            "#,
         )?;
         let frag_shader = compile_shader(
             &self.gl,
@@ -95,7 +98,7 @@ impl Viewer {
             void main() {
                 gl_FragColor = vec4(1.0, 1.0, 1.0, 1.0);
             }
-        "#,
+            "#,
         )?;
         let program = link_program(&self.gl, &vert_shader, &frag_shader)?;
         self.gl.use_program(Some(&program));

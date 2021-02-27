@@ -12,6 +12,8 @@ crate-type = ["cdylib"]
 console_error_panic_hook = "*"
 js-sys = "*"
 nalgebra = "*"
+tracing = "*"
+tracing-wasm = "*"
 wasm-bindgen = "*"
 
 [dependencies.web-sys]
