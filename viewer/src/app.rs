@@ -15,10 +15,7 @@ impl App {
     pub fn new() -> App {
         let store = Rc::new(RefCell::new(Store::new()));
         let lg = LineGraph::new();
-        App {
-            store: store,
-            lg: lg,
-        }
+        App { store, lg }
     }
 
     pub fn render(&self, gl: &WebGlRenderingContext, state: &State) {

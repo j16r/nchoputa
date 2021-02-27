@@ -10,7 +10,7 @@ pub struct LineGraph {
 
 impl LineGraph {
     pub fn new() -> LineGraph {
-        let vertices: [f32; 9] = [-1.0, -1.0, 0.0, 1.0, -1.0, 0.0, 0.0, 1.0, 0.0];
+        let vertices: [f32; 9] = [-0.7, -0.7, 0.0, 0.7, -0.7, 0.0, 0.0, 0.7, 0.0];
         let memory_buffer = wasm_bindgen::memory()
             .dyn_into::<WebAssembly::Memory>()
             .unwrap()
@@ -33,9 +33,13 @@ impl LineGraph {
             &self.vertices,
             WebGlRenderingContext::STATIC_DRAW,
         );
+
+        gl.enable_vertex_attrib_array(0);
         gl.vertex_attrib_pointer_with_i32(0, 3, WebGlRenderingContext::FLOAT, false, 0, 0);
 
+        gl.clear_color(0.0, 0.0, 0.0, 1.0);
+        gl.clear(WebGlRenderingContext::COLOR_BUFFER_BIT);
+
         gl.draw_arrays(WebGlRenderingContext::TRIANGLES, 0, (self.count / 3) as i32);
-        gl.enable_vertex_attrib_array(0);
     }
 }
