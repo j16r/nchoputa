@@ -1,7 +1,3 @@
-extern crate actix_web;
-
-use std::{env, io};
-
 use actix_files as fs;
 use actix_web::{
     App,
@@ -12,7 +8,9 @@ use actix_web::{
     get,
     http::header,
     web,
+    middleware,
 };
+use tracing::info;
 
 #[get("/favicon.ico")]
 async fn favicon() -> Result<fs::NamedFile> {
@@ -20,23 +18,21 @@ async fn favicon() -> Result<fs::NamedFile> {
 }
 
 #[actix_web::main]
-async fn main() -> io::Result<()> {
-    env::set_var("RUST_LOG", "actix_web=debug,actix_server=info");
-    // env_logger::init();
+async fn main() -> std::io::Result<()> {
+    tracing_subscriber::fmt::init();
 
-    println!("Listening on http://localhost:8999/ ...");
-    HttpServer::new(
-        || App::new()
-            .service(fs::Files::new("/s", "static"))
-            .service(favicon)
-            .service(web::resource("/").route(web::get().to(|req: HttpRequest| {
-                println!("{:?}", req);
-                HttpResponse::Found()
-                    .header(header::LOCATION, "/s/index.html")
-                    .finish()
-            })))
-        )
-        .bind("127.0.0.1:8999")?
-        .run()
-        .await
+    info!("Listening on http://localhost:8999/ ...");
+    HttpServer::new(|| App::new()
+        .wrap(middleware::Logger::default())
+        .service(favicon)
+        .service(fs::Files::new("/s", "static"))
+        .service(web::resource("/").route(web::get().to(|_req: HttpRequest| {
+            HttpResponse::Found()
+                .header(header::LOCATION, "/s/index.html")
+                .finish()
+        })))
+    )
+    .bind("127.0.0.1:8999")?
+    .run()
+    .await
 }
