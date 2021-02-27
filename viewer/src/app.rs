@@ -3,8 +3,8 @@ use std::rc::Rc;
 
 use web_sys::{self, WebGlRenderingContext};
 
-use crate::store::*;
 use crate::render::LineGraph;
+use crate::store::*;
 
 pub struct App {
     pub store: Rc<RefCell<Store>>,
@@ -15,7 +15,10 @@ impl App {
     pub fn new() -> App {
         let store = Rc::new(RefCell::new(Store::new()));
         let lg = LineGraph::new();
-        App{store: store, lg: lg}
+        App {
+            store: store,
+            lg: lg,
+        }
     }
 
     pub fn render(&self, gl: &WebGlRenderingContext, state: &State) {

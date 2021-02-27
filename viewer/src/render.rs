@@ -1,6 +1,7 @@
-use web_sys::{self, WebGlRenderingContext};
 use js_sys::WebAssembly;
+use tracing::trace;
 use wasm_bindgen::JsCast;
+use web_sys::{self, WebGlRenderingContext};
 
 pub struct LineGraph {
     vertices: js_sys::Float32Array,
@@ -9,7 +10,7 @@ pub struct LineGraph {
 
 impl LineGraph {
     pub fn new() -> LineGraph {
-        let vertices: [f32; 9] = [-0.7, -0.7, 0.0, 0.7, -0.7, 0.0, 0.0, 0.7, 0.0];
+        let vertices: [f32; 9] = [-1.0, -1.0, 0.0, 1.0, -1.0, 0.0, 0.0, 1.0, 0.0];
         let memory_buffer = wasm_bindgen::memory()
             .dyn_into::<WebAssembly::Memory>()
             .unwrap()
@@ -18,7 +19,7 @@ impl LineGraph {
         let vert_array = js_sys::Float32Array::new(&memory_buffer)
             .subarray(vertices_location, vertices_location + vertices.len() as u32);
 
-        LineGraph{
+        LineGraph {
             vertices: vert_array,
             count: vertices.len(),
         }
@@ -33,12 +34,8 @@ impl LineGraph {
             WebGlRenderingContext::STATIC_DRAW,
         );
         gl.vertex_attrib_pointer_with_i32(0, 3, WebGlRenderingContext::FLOAT, false, 0, 0);
-        gl.enable_vertex_attrib_array(0);
 
-        gl.draw_arrays(
-            WebGlRenderingContext::TRIANGLES,
-            0,
-            (self.count / 3) as i32,
-        );
+        gl.draw_arrays(WebGlRenderingContext::TRIANGLES, 0, (self.count / 3) as i32);
+        gl.enable_vertex_attrib_array(0);
     }
 }

@@ -25,13 +25,12 @@ pub struct State {
 impl State {
     fn new() -> State {
         State {
-            canvas_dimensions: Dimensions{
+            canvas_dimensions: Dimensions {
                 width: 0,
                 height: 0,
             },
         }
     }
-
 
     pub fn msg(&mut self, msg: &Msg) {
         match msg {
@@ -61,7 +60,7 @@ impl StateWrapper {
 
 pub struct Dimensions {
     pub width: u32,
-    pub height: u32
+    pub height: u32,
 }
 
 pub enum Msg {

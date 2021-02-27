@@ -1,16 +1,16 @@
 use console_error_panic_hook;
+use std::rc::Rc;
+use tracing::info;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 use web_sys::{self, WebGlProgram, WebGlRenderingContext, WebGlShader};
-use std::rc::Rc;
-use tracing::info;
 
-mod store;
 mod app;
 mod render;
+mod store;
 
 use crate::app::App;
-use crate::store::{Msg, Dimensions};
+use crate::store::{Dimensions, Msg};
 
 /// Used to run the application from the web
 #[wasm_bindgen]
@@ -25,22 +25,23 @@ fn window() -> web_sys::Window {
 }
 
 fn document() -> web_sys::Document {
-    window().document().expect("should have a document on window")
+    window()
+        .document()
+        .expect("should have a document on window")
 }
 
 fn register_resize_handler(app: Rc<App>) -> Result<(), JsValue> {
     let handler = move |_event: web_sys::DomWindowResizeEventDetail| {
-        info!("onresize ({}, {})",
+        info!(
+            "onresize ({}, {})",
             window().inner_width().unwrap().as_f64().unwrap(),
             window().inner_height().unwrap().as_f64().unwrap(),
         );
 
-        app.store.borrow_mut().msg(
-            &Msg::WindowResized(Dimensions{
-                width: window().inner_width().unwrap().as_f64().unwrap() as u32,
-                height: window().inner_height().unwrap().as_f64().unwrap() as u32,
-            })
-        );
+        app.store.borrow_mut().msg(&Msg::WindowResized(Dimensions {
+            width: window().inner_width().unwrap().as_f64().unwrap() as u32,
+            height: window().inner_height().unwrap().as_f64().unwrap() as u32,
+        }));
     };
 
     let closure = Closure::wrap(Box::new(handler) as Box<dyn FnMut(_)>);
@@ -52,7 +53,6 @@ fn register_resize_handler(app: Rc<App>) -> Result<(), JsValue> {
 
 #[wasm_bindgen]
 impl Viewer {
-
     #[wasm_bindgen(constructor)]
     pub fn new() -> Viewer {
         console_error_panic_hook::set_once();
@@ -61,7 +61,8 @@ impl Viewer {
         info!("Starting viewer...");
 
         let canvas_el = document().get_element_by_id("main").unwrap();
-        let canvas: web_sys::HtmlCanvasElement = canvas_el.dyn_into::<web_sys::HtmlCanvasElement>()
+        let canvas: web_sys::HtmlCanvasElement = canvas_el
+            .dyn_into::<web_sys::HtmlCanvasElement>()
             .expect("failed converting canvas element to js-sys HtmlCanvasElement");
 
         let gl = canvas
@@ -109,12 +110,13 @@ impl Viewer {
     pub fn render(&mut self) {
         let state = &self.app.store.borrow().state;
 
-        if self.canvas.width() != state.canvas_dimensions.width ||
-            self.canvas.height() != state.canvas_dimensions.height {
+        if self.canvas.width() != state.canvas_dimensions.width
+            || self.canvas.height() != state.canvas_dimensions.height
+        {
             self.canvas.set_width(state.canvas_dimensions.width);
             self.canvas.set_height(state.canvas_dimensions.height);
         }
-        
+
         self.app.render(&self.gl, state);
     }
 }
