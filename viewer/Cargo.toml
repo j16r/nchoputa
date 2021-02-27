@@ -3,7 +3,8 @@ name = "viewer"
 version = "0.1.0"
 authors = ["John Barker <jebarker@gmail.com>"]
 edition = "2018"
-workspace = ".."
+# See FIXME in top level Cargo.toml
+# workspace = ".."
 
 [lib]
 crate-type = ["cdylib"]

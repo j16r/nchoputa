@@ -5,8 +5,13 @@ authors = ["John Barker <jebarker@gmail.com>"]
 edition = "2018"
 build = "build.rs"
 
+# FIXME: Use build.sh to build the viewer, as a workspace member this will use
+# the workspace target, can be uncommented when the following issue is
+# resolved:
+# https://github.com/rust-lang/cargo/issues/7004
 [workspace]
-members = ['viewer']
+# members = ['viewer']
+exclude = ['viewer']
 
 [dependencies]
 actix-files = "*"
@@ -15,7 +20,8 @@ viewer = { path = './viewer' }
 tracing = "*"
 tracing-subscriber = "*"
 
-# FIXME: This does not install the binaries, see: https://github.com/rust-lang/rfcs/blob/master/text/3028-cargo-binary-dependencies.md
+# FIXME: This does not install the binaries, see:
+# https://github.com/rust-lang/rfcs/blob/master/text/3028-cargo-binary-dependencies.md
 [build-dependencies]
 wasm-bindgen-cli = "*"
 wasm-gc = "*"
