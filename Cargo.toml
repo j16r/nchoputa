@@ -9,7 +9,8 @@ build = "build.rs"
 members = ['viewer']
 
 [dependencies]
-actix-web = "0.7"
+actix-files = "*"
+actix-web = "*"
 viewer = { path = './viewer' }
 
 # FIXME: This does not install the binaries, see: https://github.com/rust-lang/rfcs/blob/master/text/3028-cargo-binary-dependencies.md

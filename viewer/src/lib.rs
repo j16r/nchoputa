@@ -74,6 +74,7 @@ impl Viewer {
             canvas: Rc::new(canvas),
         }
     }
+
     pub fn start(&mut self) -> Result<(), JsValue> {
         register_resize_handler(Rc::clone(&self.app))?;
 
