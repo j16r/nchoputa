@@ -11,4 +11,8 @@ members = ['viewer']
 [dependencies]
 actix-web = "0.7"
 viewer = { path = './viewer' }
-wasm-bindgen-cli = "0.2"
+
+# FIXME: This does not install the binaries, see: https://github.com/rust-lang/rfcs/blob/master/text/3028-cargo-binary-dependencies.md
+[build-dependencies]
+wasm-bindgen = "*"
+wasm-bindgen-cli = "*"
