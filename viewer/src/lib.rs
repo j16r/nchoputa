@@ -3,11 +3,12 @@ use std::rc::Rc;
 use tracing::info;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
-use web_sys::{self, WebGlProgram, WebGl2RenderingContext as GL, WebGlShader};
+use web_sys::{self, WebGl2RenderingContext as GL};
 
 mod app;
 mod render;
 mod store;
+mod shader;
 
 use crate::app::App;
 use crate::store::{Dimensions, Msg};
@@ -56,17 +57,17 @@ impl Viewer {
 
         let canvas_el = document().get_element_by_id("main").unwrap();
         let canvas: web_sys::HtmlCanvasElement = canvas_el
-            .dyn_into::<web_sys::HtmlCanvasElement>()
+            .dyn_into()
             .expect("failed converting canvas element to js-sys HtmlCanvasElement");
 
-        let gl = canvas
+        let gl: GL = canvas
             .get_context("webgl2")
             .expect("get context webgl2 error")
             .unwrap()
-            .dyn_into::<GL>()
+            .dyn_into()
             .unwrap();
 
-        let app = Rc::new(App::new());
+        let app = Rc::new(App::new(&gl));
         app.store.borrow_mut().msg(&Msg::WindowResized(Dimensions {
             width: window().inner_width().unwrap().as_f64().unwrap() as u32,
             height: window().inner_height().unwrap().as_f64().unwrap() as u32,
@@ -81,29 +82,6 @@ impl Viewer {
 
     pub fn start(&mut self) -> Result<(), JsValue> {
         register_resize_handler(Rc::clone(&self.app))?;
-
-        let vert_shader = compile_shader(
-            &self.gl,
-            GL::VERTEX_SHADER,
-            r#"
-            attribute vec4 position;
-            void main() {
-                gl_Position = position;
-            }
-            "#,
-        )?;
-        let frag_shader = compile_shader(
-            &self.gl,
-            GL::FRAGMENT_SHADER,
-            r#"
-            void main() {
-                gl_FragColor = vec4(1.0, 1.0, 1.0, 1.0);
-            }
-            "#,
-        )?;
-        let program = link_program(&self.gl, &vert_shader, &frag_shader)?;
-        self.gl.use_program(Some(&program));
-
         Ok(())
     }
 
@@ -118,55 +96,5 @@ impl Viewer {
         }
 
         self.app.render(&self.gl, state);
-    }
-}
-
-pub fn compile_shader(
-    gl: &GL,
-    shader_type: u32,
-    source: &str,
-) -> Result<WebGlShader, String> {
-    let shader = gl
-        .create_shader(shader_type)
-        .ok_or_else(|| String::from("Unable to create shader object"))?;
-    gl.shader_source(&shader, source);
-    gl.compile_shader(&shader);
-
-    if gl
-        .get_shader_parameter(&shader, GL::COMPILE_STATUS)
-        .as_bool()
-        .unwrap_or(false)
-    {
-        Ok(shader)
-    } else {
-        Err(gl
-            .get_shader_info_log(&shader)
-            .unwrap_or_else(|| String::from("Unknown error creating shader")))
-    }
-}
-
-pub fn link_program(
-    gl: &GL,
-    vert_shader: &WebGlShader,
-    frag_shader: &WebGlShader,
-) -> Result<WebGlProgram, String> {
-    let program = gl
-        .create_program()
-        .ok_or_else(|| String::from("Unable to create shader object"))?;
-
-    gl.attach_shader(&program, vert_shader);
-    gl.attach_shader(&program, frag_shader);
-    gl.link_program(&program);
-
-    if gl
-        .get_program_parameter(&program, GL::LINK_STATUS)
-        .as_bool()
-        .unwrap_or(false)
-    {
-        Ok(program)
-    } else {
-        Err(gl
-            .get_program_info_log(&program)
-            .unwrap_or_else(|| String::from("Unknown error creating program object")))
     }
 }

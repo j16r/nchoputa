@@ -2,6 +2,8 @@ use js_sys::WebAssembly;
 use wasm_bindgen::JsCast;
 use web_sys::{self, WebGl2RenderingContext as GL};
 
+use crate::shader::{ShaderSystem, ShaderKind};
+
 pub struct LineGraph {
     vertices: js_sys::Float32Array,
     count: usize,
@@ -24,7 +26,7 @@ impl LineGraph {
         }
     }
 
-    pub fn render(&self, gl: &GL) {
+    pub fn render(&self, gl: &GL, shaders: &ShaderSystem) {
         let buffer = gl.create_buffer().expect("failed to create buffer");
         gl.bind_buffer(GL::ARRAY_BUFFER, Some(&buffer));
         gl.buffer_data_with_array_buffer_view(
@@ -33,11 +35,11 @@ impl LineGraph {
             GL::STATIC_DRAW,
         );
 
+        // let shader = shaders.get_shader(&ShaderKind::SolidWhite).unwrap();
+        shaders.use_program(gl, ShaderKind::SolidWhite);
+
         gl.enable_vertex_attrib_array(0);
         gl.vertex_attrib_pointer_with_i32(0, 3, GL::FLOAT, false, 0, 0);
-
-        // gl.clear_color(0.0, 0.0, 0.0, 1.0);
-        // gl.clear(GL::COLOR_BUFFER_BIT);
 
         gl.draw_arrays(GL::TRIANGLES, 0, (self.count / 3) as i32);
     }
