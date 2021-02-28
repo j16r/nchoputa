@@ -1,23 +1,24 @@
-use std::process::Command;
-use std::env;
+use std::{env, path::Path, process::Command};
 
 fn main() {
     let out_dir = "static";
     let profile = env::var("PROFILE").unwrap();
 
-    let source_wasm = format!("viewer/target/wasm32-unknown-unknown/{}/viewer.wasm", profile).to_string();
+    let source_wasm = Path::new("viewer/target/wasm32-unknown-unknown/")
+        .join(&profile)
+        .join("viewer.wasm");
 
-    println!("cargo:rerun-if-changed={}", source_wasm);
+    println!("cargo:rerun-if-changed={}", source_wasm.to_str().unwrap());
     println!("cargo:rerun-if-changed=viewer/src/*.rs");
     println!("cargo:rerun-if-env-changed=PROFILE");
 
     let core_bindgen_args = [
-        &source_wasm,
+        &source_wasm.to_str().unwrap(),
         "--out-dir", out_dir,
         "--no-typescript",
         "--browser",
         "--no-modules",
-        "--out-name viewer.wasm"];
+        "--out-name", source_wasm.file_name().unwrap().to_str().unwrap()];
     if profile == "debug" {
         Command::new("wasm-bindgen")
             .args(&core_bindgen_args)
