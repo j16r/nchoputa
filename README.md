@@ -4,9 +4,9 @@ Explore climate data in a visual way.
 
 ## Setup
 
-You'll need to manually install `wasm-bindgen-cli` and `wasm-gc`:
+You'll need to manually install `wasm-bindgen-cli`:
 
-    cargo install wasm-bindgen-cli wasm-gc
+    cargo install wasm-bindgen-cli
 
 As well as the `wasm` target:
 

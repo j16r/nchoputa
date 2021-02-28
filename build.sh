@@ -1,7 +1,7 @@
 #!/bin/bash
 set -ex
 
-rm -f viewer/viewer_bg.wasm viewer/viewer.js
+rm -f viewer/viewer.wasm viewer/viewer.js
 cd viewer
 cargo build
 cd ..

@@ -24,4 +24,3 @@ tracing-subscriber = "*"
 # https://github.com/rust-lang/rfcs/blob/master/text/3028-cargo-binary-dependencies.md
 [build-dependencies]
 wasm-bindgen-cli = "*"
-wasm-gc = "*"

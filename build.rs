@@ -16,7 +16,8 @@ fn main() {
         "--out-dir", out_dir,
         "--no-typescript",
         "--browser",
-        "--no-modules"];
+        "--no-modules",
+        "--out-name viewer.wasm"];
     if profile == "debug" {
         Command::new("wasm-bindgen")
             .args(&core_bindgen_args)
@@ -29,9 +30,4 @@ fn main() {
             .status()
             .expect("error while running wasm-bindgen");
     }
-
-    Command::new("wasm-gc")
-        .args(&["static/viewer_bg.wasm"])
-        .status()
-        .expect("error while running wasm-gc");
 }
