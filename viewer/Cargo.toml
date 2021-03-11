@@ -12,6 +12,7 @@ crate-type = ["cdylib"]
 [dependencies]
 console_error_panic_hook = "*"
 js-sys = "*"
+lazy_static = "*"
 nalgebra = "*"
 tracing = "*"
 tracing-wasm = "*"
