@@ -12,23 +12,21 @@ fn main() {
     println!("cargo:rerun-if-changed=viewer/src/*.rs");
     println!("cargo:rerun-if-env-changed=PROFILE");
 
-    let core_bindgen_args = [
-        &source_wasm.to_str().unwrap(),
+    let mut bindgen_args = vec!(
+        source_wasm.to_str().unwrap(),
         "--out-dir", out_dir,
         "--no-typescript",
         "--browser",
         "--no-modules",
-        "--out-name", source_wasm.file_name().unwrap().to_str().unwrap()];
+        "--out-name", source_wasm.file_name().unwrap().to_str().unwrap());
     if profile == "debug" {
-        Command::new("wasm-bindgen")
-            .args(&core_bindgen_args)
-            .args(&["--keep-debug", "--debug", "--no-demangle"])
-            .status()
-            .expect("error while running wasm-bindgen");
-    } else {
-        Command::new("wasm-bindgen")
-            .args(&core_bindgen_args)
-            .status()
-            .expect("error while running wasm-bindgen");
+        bindgen_args.extend(&["--keep-debug", "--debug", "--no-demangle"]);
+    }
+    let status = Command::new("wasm-bindgen")
+        .args(&bindgen_args)
+        .status()
+        .expect("error while running wasm-bindgen");
+    if !status.success() {
+        panic!("error performing wasm-bindgen");
     }
 }
