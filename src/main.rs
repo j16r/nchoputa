@@ -32,7 +32,7 @@ async fn main() -> std::io::Result<()> {
                 .finish()
         })))
     )
-    .bind("127.0.0.1:8999")?
+    .bind("0.0.0.0:8999")?
     .run()
     .await
 }
