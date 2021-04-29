@@ -26,7 +26,5 @@ fn main() {
         .args(&bindgen_args)
         .status()
         .expect("error while running wasm-bindgen");
-    if !status.success() {
-        panic!("error performing wasm-bindgen");
-    }
+    assert!(status.success());
 }
