@@ -3,15 +3,9 @@ name = "nchoputa"
 version = "0.1.0"
 authors = ["John Barker <jebarker@gmail.com>"]
 edition = "2018"
-build = "build.rs"
 
-# FIXME: Use build.sh to build the viewer, as a workspace member this will use
-# the workspace target, can be uncommented when the following issue is
-# resolved:
-# https://github.com/rust-lang/cargo/issues/7004
 [workspace]
-# members = ['viewer']
-exclude = ['viewer']
+members = ['viewer']
 
 [dependencies]
 actix-files = "*"

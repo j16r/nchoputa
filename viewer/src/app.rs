@@ -5,7 +5,6 @@ use js_sys::WebAssembly;
 use wasm_bindgen::JsCast;
 use web_sys::{self, WebGl2RenderingContext as GL};
 use nalgebra::{Matrix4, Perspective3, Vector3};
-use tracing::debug;
 
 use crate::render::LineGraph;
 use crate::store::*;
@@ -61,8 +60,6 @@ impl App {
 
         gl.buffer_data_with_array_buffer_view(GL::ARRAY_BUFFER, &data_array, GL::STATIC_DRAW);
 
-        debug!("data_array = {:?}", &data_array);
-
         let shader = self.shaders.get(&ShaderKind::SolidWhite).unwrap();
         self.shaders.use_program(gl, ShaderKind::SolidWhite);
 
@@ -80,7 +77,6 @@ impl App {
         let projection_matrix = projection.as_matrix().to_owned();
 
         let view_matrix = Matrix4::new_translation(&Vector3::new(-0., 0., -6.));
-        debug!("view_matrix {:#?}", view_matrix);
 
         {
             let num_components = 2;  // pull out 2 values per iteration
@@ -104,8 +100,6 @@ impl App {
         // Set the shader uniforms
         let mut projection_matrix_data = [0.0_f32; 16];
         projection_matrix_data.copy_from_slice(projection_matrix.as_slice());
-
-        debug!("projection_matrix_data {:#?}", projection_matrix_data);
 
         gl.uniform_matrix4fv_with_f32_array(
             uniform_project_matrix.as_ref(),

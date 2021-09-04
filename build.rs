@@ -4,7 +4,7 @@ fn main() {
     let out_dir = "static";
     let profile = env::var("PROFILE").unwrap();
 
-    let source_wasm = Path::new("viewer/target/wasm32-unknown-unknown/")
+    let source_wasm = Path::new("target/wasm32-unknown-unknown/")
         .join(&profile)
         .join("viewer.wasm");
 

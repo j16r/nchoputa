@@ -11,7 +11,7 @@ mod store;
 mod shader;
 
 use crate::app::App;
-use crate::store::{Dimensions, Msg};
+use crate::store::{Dimensions, Coordinates, MouseButton, Msg};
 
 /// Used to run the application from the web
 #[wasm_bindgen]
@@ -41,6 +41,24 @@ fn register_resize_handler(app: Rc<App>) -> Result<(), JsValue> {
 
     let closure = Closure::wrap(Box::new(handler) as Box<dyn FnMut(_)>);
     window().add_event_listener_with_callback("resize", closure.as_ref().unchecked_ref())?;
+    closure.forget();
+
+    Ok(())
+}
+
+fn register_mouse_move_handler(app: Rc<App>) -> Result<(), JsValue> {
+    let handler = move |event: web_sys::MouseEvent| {
+        app.store.borrow_mut().msg(&Msg::MouseMoved((Coordinates {
+            x: event.offset_x(),
+            y: event.offset_y(),
+        },
+        event.button().into())));
+    };
+
+    let closure = Closure::wrap(Box::new(handler) as Box<dyn FnMut(_)>);
+    window().add_event_listener_with_callback("mouseup", closure.as_ref().unchecked_ref())?;
+    window().add_event_listener_with_callback("mousedown", closure.as_ref().unchecked_ref())?;
+    window().add_event_listener_with_callback("mousemove", closure.as_ref().unchecked_ref())?;
     closure.forget();
 
     Ok(())
@@ -82,6 +100,7 @@ impl Viewer {
 
     pub fn start(&mut self) -> Result<(), JsValue> {
         register_resize_handler(Rc::clone(&self.app))?;
+        register_mouse_move_handler(Rc::clone(&self.app))?;
         Ok(())
     }
 

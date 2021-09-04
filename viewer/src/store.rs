@@ -1,5 +1,7 @@
 use std::ops::Deref;
 
+use tracing::debug;
+
 pub struct Store {
     pub state: StateWrapper,
 }
@@ -38,6 +40,10 @@ impl State {
             Msg::WindowResized(ref dimensions) => {
                 self.canvas_dimensions.width = dimensions.width;
                 self.canvas_dimensions.height = dimensions.height;
+            },
+            Msg::MouseMoved((ref coordinates, ref button)) => {
+                debug!("mouse coordinates {:?}", coordinates);
+                debug!("mouse button {:?}", button);
             }
         }
     }
@@ -65,6 +71,35 @@ pub struct Dimensions {
     pub height: u32,
 }
 
+#[derive(Debug)]
+pub struct Coordinates {
+    pub x: i32,
+    pub y: i32,
+}
+
+#[derive(Debug)]
+pub enum MouseButton {
+    Main = 0,
+    Auxiliary = 1,
+    Secondary = 2,
+    Fourth = 3,
+    Fifth = 4,
+}
+
+impl From<i16> for MouseButton {
+    fn from(input: i16) -> Self {
+        match input {
+            0 => MouseButton::Main,
+            1 => MouseButton::Auxiliary,
+            2 => MouseButton::Secondary,
+            3 => MouseButton::Fourth,
+            4 => MouseButton::Fifth,
+            _ => unreachable!(),
+        }
+    }
+}
+
 pub enum Msg {
     WindowResized(Dimensions),
+    MouseMoved((Coordinates, MouseButton)),
 }
