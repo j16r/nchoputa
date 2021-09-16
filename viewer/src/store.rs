@@ -9,7 +9,7 @@ pub struct Store {
 impl Store {
     pub fn new() -> Store {
         Store {
-            state: StateWrapper(State::new()),
+            state: StateWrapper(State::default()),
         }
     }
 
@@ -20,30 +20,24 @@ impl Store {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct State {
     pub canvas_dimensions: Dimensions,
+    pub mouse: MouseState,
 }
 
 impl State {
-    fn new() -> State {
-        State {
-            canvas_dimensions: Dimensions {
-                width: 0,
-                height: 0,
-            },
-        }
-    }
-
     pub fn msg(&mut self, msg: &Msg) {
         match msg {
             Msg::WindowResized(ref dimensions) => {
                 self.canvas_dimensions.width = dimensions.width;
                 self.canvas_dimensions.height = dimensions.height;
             },
-            Msg::MouseMoved((ref coordinates, ref button)) => {
-                debug!("mouse coordinates {:?}", coordinates);
-                debug!("mouse button {:?}", button);
+            Msg::MouseMoved((ref position, ref button)) => {
+                self.mouse = MouseState{
+                    buttons: Vec::new(),
+                    position: position.clone(),
+                };
             }
         }
     }
@@ -61,17 +55,17 @@ impl Deref for StateWrapper {
 
 impl StateWrapper {
     pub fn msg(&mut self, msg: &Msg) {
-        &self.0.msg(msg);
+        self.0.msg(msg);
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone,Debug, Default)]
 pub struct Dimensions {
     pub width: u32,
     pub height: u32,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct Coordinates {
     pub x: i32,
     pub y: i32,
@@ -97,6 +91,12 @@ impl From<i16> for MouseButton {
             _ => unreachable!(),
         }
     }
+}
+
+#[derive(Debug, Default)]
+pub struct MouseState {
+    buttons: Vec<MouseButton>,
+    position: Coordinates,
 }
 
 pub enum Msg {
