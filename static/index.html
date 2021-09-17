@@ -1,7 +1,6 @@
 <html>
   <head>
     <meta content='text/html;charset=utf-8' http-equiv='Content-Type'/>
-    <script type='application/javascript' src='/s/viewer.js'></script>
     <style>
       body {
         border: 0;
@@ -16,30 +15,8 @@
       }
     </style>
   </head>
-  <body>
-    <canvas id='main'></canvas>
-
-    <script type='application/javascript'>
-      window.addEventListener('load', function () {
-        wasm_bindgen('/s/viewer.wasm')
-          .then(() => {
-              const viewer = new wasm_bindgen.Viewer()
-              viewer.start()
-
-              let time = Date.now()
-              const render = () => {
-                const dt = Date.now() - time
-
-                viewer.render()
-                window.requestAnimationFrame(render)
-
-                time = Date.now()
-              }
-
-              render()
-          })
-          .catch(console.error)
-      })
-    </script>
-  </body>
+  <script type="module">
+    import init from '/s/viewer.js'
+    init()
+  </script>
 </html>

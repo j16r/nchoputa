@@ -1,119 +1,79 @@
-use console_error_panic_hook;
-use std::rc::Rc;
-use tracing::info;
-use wasm_bindgen::prelude::*;
-use wasm_bindgen::JsCast;
-use web_sys::{self, WebGl2RenderingContext as GL};
+use bevy::prelude::*;
+use bevy::{
+    app::Events,
+    window::WindowResized,
+};
 
-mod app;
-mod render;
-mod store;
-mod shader;
+mod wasm {
+    use wasm_bindgen::prelude::*;
+    use console_error_panic_hook;
 
-use crate::app::App;
-use crate::store::{Dimensions, Coordinates, MouseButton, Msg};
-
-/// Used to run the application from the web
-#[wasm_bindgen]
-pub struct Viewer {
-    app: Rc<App>,
-    gl: Rc<GL>,
-    canvas: Rc<web_sys::HtmlCanvasElement>,
-}
-
-fn window() -> web_sys::Window {
-    web_sys::window().expect("no global `window` exists")
-}
-
-fn document() -> web_sys::Document {
-    window()
-        .document()
-        .expect("should have a document on window")
-}
-
-fn register_resize_handler(app: Rc<App>) -> Result<(), JsValue> {
-    let handler = move |_event: web_sys::DomWindowResizeEventDetail| {
-        app.store.borrow_mut().msg(&Msg::WindowResized(Dimensions {
-            width: window().inner_width().unwrap().as_f64().unwrap() as u32,
-            height: window().inner_height().unwrap().as_f64().unwrap() as u32,
-        }));
-    };
-
-    let closure = Closure::wrap(Box::new(handler) as Box<dyn FnMut(_)>);
-    window().add_event_listener_with_callback("resize", closure.as_ref().unchecked_ref())?;
-    closure.forget();
-
-    Ok(())
-}
-
-fn register_mouse_move_handler(app: Rc<App>) -> Result<(), JsValue> {
-    let handler = move |event: web_sys::MouseEvent| {
-        app.store.borrow_mut().msg(&Msg::MouseMoved((Coordinates {
-            x: event.offset_x(),
-            y: event.offset_y(),
-        },
-        event.button().into())));
-    };
-
-    let closure = Closure::wrap(Box::new(handler) as Box<dyn FnMut(_)>);
-    window().add_event_listener_with_callback("mouseup", closure.as_ref().unchecked_ref())?;
-    window().add_event_listener_with_callback("mousedown", closure.as_ref().unchecked_ref())?;
-    window().add_event_listener_with_callback("mousemove", closure.as_ref().unchecked_ref())?;
-    closure.forget();
-
-    Ok(())
-}
-
-#[wasm_bindgen]
-impl Viewer {
-    #[wasm_bindgen(constructor)]
-    pub fn new() -> Viewer {
+    #[wasm_bindgen(start)]
+    pub fn run() {
         console_error_panic_hook::set_once();
-        tracing_wasm::set_as_global_default();
 
-        info!("Starting viewer...");
-
-        let canvas_el = document().get_element_by_id("main").unwrap();
-        let canvas: web_sys::HtmlCanvasElement = canvas_el
-            .dyn_into()
-            .expect("failed converting canvas element to js-sys HtmlCanvasElement");
-
-        let gl: GL = canvas
-            .get_context("webgl2")
-            .expect("get context webgl2 error")
-            .unwrap()
-            .dyn_into()
-            .unwrap();
-
-        let app = Rc::new(App::new(&gl));
-        app.store.borrow_mut().msg(&Msg::WindowResized(Dimensions {
-            width: window().inner_width().unwrap().as_f64().unwrap() as u32,
-            height: window().inner_height().unwrap().as_f64().unwrap() as u32,
-        }));
-
-        Viewer {
-            app,
-            gl: Rc::new(gl),
-            canvas: Rc::new(canvas),
-        }
+        super::main();
     }
+}
 
-    pub fn start(&mut self) -> Result<(), JsValue> {
-        register_resize_handler(Rc::clone(&self.app))?;
-        register_mouse_move_handler(Rc::clone(&self.app))?;
-        Ok(())
+pub fn main() {
+    let window = web_sys::window().unwrap();
+
+    let mut app = App::build();
+    app.insert_resource(Msaa { samples: 4 })
+        .insert_resource(WindowDescriptor {
+            title: "ncho".to_string(),
+            width: window.inner_width().unwrap().as_f64().unwrap() as f32,
+            height: window.inner_height().unwrap().as_f64().unwrap() as f32,
+            vsync: true,
+            resizable: false,
+            decorations: false,
+            ..Default::default()
+        })
+        .add_plugins(DefaultPlugins)
+        .add_plugin(bevy_webgl2::WebGL2Plugin)
+        .add_startup_system(setup.system())
+        .add_startup_system(resize_notificator.system())
+        .run();
+}
+
+// XXX: bevy doesn't yet support window resizing
+fn resize_notificator(resize_event: Res<Events<WindowResized>>) {
+    let mut reader = resize_event.get_reader();
+    for e in reader.iter(&resize_event) {
+        println!("width = {} height = {}", e.width, e.height);
     }
+}
 
-    pub fn render(&mut self) {
-        let state = &self.app.store.borrow().state;
-
-        if self.canvas.width() != state.canvas_dimensions.width
-            || self.canvas.height() != state.canvas_dimensions.height
-        {
-            self.canvas.set_width(state.canvas_dimensions.width);
-            self.canvas.set_height(state.canvas_dimensions.height);
-        }
-
-        self.app.render(&self.gl, state);
-    }
+/// set up a simple 3D scene
+fn setup(
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+) {
+    // add entities to the world
+    // plane
+    commands.spawn_bundle(PbrBundle {
+        mesh: meshes.add(Mesh::from(shape::Plane { size: 5.0 })),
+        material: materials.add(Color::rgb(0.3, 0.5, 0.3).into()),
+        ..Default::default()
+    });
+    // cube
+    commands.spawn_bundle(PbrBundle {
+        mesh: meshes.add(Mesh::from(shape::Cube { size: 1.0 })),
+        material: materials.add(Color::rgb(0.8, 0.7, 0.6).into()),
+        transform: Transform::from_translation(Vec3::new(0.0, 0.5, 0.0)),
+        ..Default::default()
+    });
+    // light
+    commands.spawn_bundle(LightBundle {
+        transform: Transform::from_translation(Vec3::new(4.0, 8.0, 4.0)),
+        ..Default::default()
+    });
+    // camera
+    commands.spawn_bundle(PerspectiveCameraBundle {
+        transform: Transform::from_translation(Vec3::new(-2.0, 2.5, 5.0))
+            .looking_at(Vec3::default(), Vec3::Y),
+        ..Default::default()
+    });
 }

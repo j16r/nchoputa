@@ -4,13 +4,9 @@ version = "0.1.0"
 authors = ["John Barker <jebarker@gmail.com>"]
 edition = "2018"
 
-[workspace]
-members = ['viewer']
-
 [dependencies]
 actix-files = "*"
 actix-web = "*"
-viewer = { path = './viewer' }
 tracing = "*"
 tracing-subscriber = "*"
 

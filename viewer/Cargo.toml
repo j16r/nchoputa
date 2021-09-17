@@ -3,49 +3,27 @@ name = "viewer"
 version = "0.1.0"
 authors = ["John Barker <jebarker@gmail.com>"]
 edition = "2018"
-workspace = ".."
 
 [lib]
 crate-type = ["cdylib"]
 
 [dependencies]
 console_error_panic_hook = "*"
-js-sys = "*"
-lazy_static = "*"
-nalgebra = "*"
+bevy_webgl2 = {version = "0.5"}
 tracing = "*"
 tracing-wasm = "*"
 wasm-bindgen = "*"
+winit = {version = "0.24", features = ["web-sys"]}
+web-sys = "*"
 
-[dependencies.web-sys]
-version = "*"
-features = [
-  'console',
-  'CssStyleDeclaration',
-  'Document',
-  'DomWindowResizeEventDetail',
-  'Element',
-  'Event',
-  'EventTarget',
-  'HtmlCanvasElement',
-  'HtmlElement',
-  'HtmlImageElement',
-  'HtmlInputElement',
-  'InputEvent',
-  'MouseEvent',
-  'Node',
-  'Touch',
-  'TouchEvent',
-  'TouchList',
-  'WebGlBuffer',
-  'WebGlFramebuffer',
-  'WebGlProgram',
-  'WebGlRenderbuffer',
-  'WebGl2RenderingContext',
-  'WebGlShader',
-  'WebGlTexture',
-  'WebGlUniformLocation',
-  'WebGlVertexArrayObject',
-  'WheelEvent',
-  'Window',
-]
+[dependencies.bevy]
+version = "0.5"
+default-features = false
+features = ["bevy_winit", "bevy_gltf", "render", "png"]
+
+[profile.dev]
+opt-level = 1
+
+[profile.release]
+lto = "thin"
+opt-level = 'z'
