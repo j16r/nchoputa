@@ -1,7 +1,11 @@
+use tracing::{debug, trace};
 use bevy::prelude::*;
 use bevy::{
-    app::Events,
+    app::{Events, EventReader},
     window::WindowResized,
+    input::mouse::{MouseButtonInput, MouseMotion},
+    math::Vec2,
+    render::camera::{Camera, PerspectiveProjection},
 };
 
 mod wasm {
@@ -17,6 +21,8 @@ mod wasm {
 }
 
 pub fn main() {
+    trace!("nchoputa viewer starting up...");
+
     let window = web_sys::window().unwrap();
 
     let mut app = App::build();
@@ -33,8 +39,12 @@ pub fn main() {
         .add_plugins(DefaultPlugins)
         .add_plugin(bevy_webgl2::WebGL2Plugin)
         .add_startup_system(setup.system())
-        .add_startup_system(resize_notificator.system())
+        .add_system(resize_notificator.system())
+        .add_system(update_mouse_motion.system())
+        // .add_system(clock.system())
         .run();
+
+    trace!("start up done");
 }
 
 // XXX: bevy doesn't yet support window resizing
@@ -45,12 +55,19 @@ fn resize_notificator(resize_event: Res<Events<WindowResized>>) {
     }
 }
 
+// fn clock(time: Res<Time>, mut query: Query<&mut Timer>) {
+//     info!("tick = {:?}", time.delta());
+// }
+
 /// set up a simple 3D scene
 fn setup(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
+    // add a regular timer
+    // commands.spawn().insert(Timer::from_seconds(1.0, true));
+
     // add entities to the world
     // plane
     commands.spawn_bundle(PbrBundle {
@@ -76,4 +93,27 @@ fn setup(
             .looking_at(Vec3::default(), Vec3::Y),
         ..Default::default()
     });
+}
+
+fn update_mouse_motion(
+    mut event_reader: EventReader<MouseMotion>,
+    events: Res<Events<MouseMotion>>,
+    cameras: Query<(&GlobalTransform, &PerspectiveProjection), With<Camera>>,
+) {
+    let delta = event_reader
+        .iter()
+        .fold(Vec2::ZERO, |acc, e| acc + e.delta);
+    if delta == Vec2::ZERO {
+        return
+    }
+
+    let (camera, proj) = cameras
+        .iter()
+        .next()
+        .expect("could not find an orthographic camera");
+    info!("camera = {:?}", camera);
+
+    camera.mul_vec3(
+        Vec3::new(0.1, 0.1, 0.1),
+    );
 }
