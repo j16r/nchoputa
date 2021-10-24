@@ -36,12 +36,13 @@ pub fn main() {
             decorations: false,
             ..Default::default()
         })
+        .insert_resource(DrumBeat(Timer::from_seconds(1.0, true)))
         .add_plugins(DefaultPlugins)
         .add_plugin(bevy_webgl2::WebGL2Plugin)
         .add_startup_system(setup.system())
         .add_system(resize_notificator.system())
         .add_system(update_mouse_motion.system())
-        // .add_system(clock.system())
+        .add_system(clock.system())
         .run();
 
     trace!("start up done");
@@ -55,9 +56,13 @@ fn resize_notificator(resize_event: Res<Events<WindowResized>>) {
     }
 }
 
-// fn clock(time: Res<Time>, mut query: Query<&mut Timer>) {
-//     info!("tick = {:?}", time.delta());
-// }
+struct DrumBeat(Timer);
+
+fn clock(time: Res<Time>, mut timer: ResMut<DrumBeat>, mut query: Query<&mut Timer>) {
+    if timer.0.tick(time.delta()).just_finished() {
+        info!("tick = {:?}", time.delta());
+    }
+}
 
 /// set up a simple 3D scene
 fn setup(
@@ -65,8 +70,6 @@ fn setup(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
-    // add a regular timer
-    // commands.spawn().insert(Timer::from_seconds(1.0, true));
 
     // add entities to the world
     // plane
@@ -113,7 +116,7 @@ fn update_mouse_motion(
         .expect("could not find an orthographic camera");
     info!("camera = {:?}", camera);
 
-    camera.mul_vec3(
-        Vec3::new(0.1, 0.1, 0.1),
-    );
+    // camera.translation += camera.mul_vec3(
+    //     Vec3::new(0.1, 0.1, 0.1),
+    // );
 }
