@@ -25,7 +25,7 @@ pub fn main() {
 
     let window = web_sys::window().unwrap();
 
-    let mut app = App::build();
+    let mut app = App::new();
     app.insert_resource(Msaa { samples: 4 })
         .insert_resource(WindowDescriptor {
             title: "ncho".to_string(),
@@ -38,7 +38,6 @@ pub fn main() {
         })
         .insert_resource(DrumBeat(Timer::from_seconds(1.0, true)))
         .add_plugins(DefaultPlugins)
-        .add_plugin(bevy_webgl2::WebGL2Plugin)
         .add_startup_system(setup.system())
         .add_system(resize_notificator.system())
         .add_system(update_mouse_motion.system())
@@ -86,7 +85,7 @@ fn setup(
         ..Default::default()
     });
     // light
-    commands.spawn_bundle(LightBundle {
+    commands.spawn_bundle(PointLightBundle {
         transform: Transform::from_translation(Vec3::new(4.0, 8.0, 4.0)),
         ..Default::default()
     });

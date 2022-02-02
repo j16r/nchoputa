@@ -2,7 +2,8 @@
 name = "nchoputa"
 version = "0.1.0"
 authors = ["John Barker <jebarker@gmail.com>"]
-edition = "2018"
+edition = "2021"
+resolver = "2"
 
 [dependencies]
 actix-files = "*"
