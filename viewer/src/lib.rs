@@ -69,7 +69,6 @@ fn setup(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
-
     // add entities to the world
     // plane
     commands.spawn_bundle(PbrBundle {
@@ -99,8 +98,8 @@ fn setup(
 
 fn update_mouse_motion(
     mut event_reader: EventReader<MouseMotion>,
-    events: Res<Events<MouseMotion>>,
-    cameras: Query<(&GlobalTransform, &PerspectiveProjection), With<Camera>>,
+    _events: Res<Events<MouseMotion>>,
+    mut cameras: Query<(&mut GlobalTransform, &mut PerspectiveProjection), With<Camera>>,
 ) {
     let delta = event_reader
         .iter()
@@ -109,13 +108,11 @@ fn update_mouse_motion(
         return
     }
 
-    let (camera, proj) = cameras
-        .iter()
+    let (mut camera, _proj) = cameras
+        .iter_mut()
         .next()
         .expect("could not find an orthographic camera");
     info!("camera = {:?}", camera);
 
-    // camera.translation += camera.mul_vec3(
-    //     Vec3::new(0.1, 0.1, 0.1),
-    // );
+    camera.translation += Vec3::new(0.1, 0.0, 0.0);
 }
