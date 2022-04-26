@@ -19,9 +19,9 @@ async fn main() -> std::io::Result<()> {
             .wrap(middleware::Logger::default())
             .service(favicon)
             .service(fs::Files::new("/s", "static"))
-            .service(web::resource("/").route(web::get().to(|_req: HttpRequest| {
+            .service(web::resource("/").route(web::get().to(|| async {
                 HttpResponse::Found()
-                    .header(header::LOCATION, "/s/index.html")
+                    .insert_header((header::LOCATION, "/s/index.html"))
                     .finish()
             })))
     })
