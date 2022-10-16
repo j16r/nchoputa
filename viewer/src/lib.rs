@@ -1,7 +1,7 @@
 use tracing::{debug, trace};
 use bevy::prelude::*;
 use bevy::{
-    app::{Events, EventReader},
+    ecs::event::{Events, EventReader},
     window::WindowResized,
     input::mouse::{MouseButtonInput, MouseMotion},
     math::Vec2,
@@ -31,17 +31,16 @@ pub fn main() {
             title: "ncho".to_string(),
             width: window.inner_width().unwrap().as_f64().unwrap() as f32,
             height: window.inner_height().unwrap().as_f64().unwrap() as f32,
-            vsync: true,
             resizable: false,
             decorations: false,
             ..Default::default()
         })
         .insert_resource(DrumBeat(Timer::from_seconds(1.0, true)))
         .add_plugins(DefaultPlugins)
-        .add_startup_system(setup.system())
-        .add_system(resize_notificator.system())
-        .add_system(update_mouse_motion.system())
-        .add_system(clock.system())
+        .add_startup_system(setup)
+        .add_system(resize_notificator)
+        .add_system(update_mouse_motion)
+        .add_system(clock)
         .run();
 
     trace!("start up done");
@@ -55,9 +54,10 @@ fn resize_notificator(resize_event: Res<Events<WindowResized>>) {
     }
 }
 
+#[derive(Component, Deref, DerefMut)]
 struct DrumBeat(Timer);
 
-fn clock(time: Res<Time>, mut timer: ResMut<DrumBeat>, mut query: Query<&mut Timer>) {
+fn clock(time: Res<Time>, mut timer: ResMut<DrumBeat>, mut query: Query<&mut DrumBeat>) {
     if timer.0.tick(time.delta()).just_finished() {
         info!("tick = {:?}", time.delta());
     }
