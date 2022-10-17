@@ -3,9 +3,9 @@ use bevy::prelude::*;
 use bevy::{
     ecs::event::{Events, EventReader},
     window::WindowResized,
-    input::mouse::{MouseButtonInput, MouseMotion},
+    input::mouse::MouseMotion,
     math::Vec2,
-    render::camera::{Camera, PerspectiveProjection},
+    render::camera::Camera,
 };
 
 mod wasm {
@@ -31,7 +31,7 @@ pub fn main() {
             title: "ncho".to_string(),
             width: window.inner_width().unwrap().as_f64().unwrap() as f32,
             height: window.inner_height().unwrap().as_f64().unwrap() as f32,
-            resizable: false,
+            resizable: true,
             decorations: false,
             ..Default::default()
         })
@@ -47,9 +47,9 @@ pub fn main() {
 }
 
 // XXX: bevy doesn't yet support window resizing
-fn resize_notificator(resize_event: Res<Events<WindowResized>>) {
-    let mut reader = resize_event.get_reader();
-    for e in reader.iter(&resize_event) {
+fn resize_notificator(mut resize_events: EventReader<WindowResized>) {
+    debug!("got resize");
+    for e in resize_events.iter() {
         println!("width = {} height = {}", e.width, e.height);
     }
 }
@@ -57,7 +57,7 @@ fn resize_notificator(resize_event: Res<Events<WindowResized>>) {
 #[derive(Component, Deref, DerefMut)]
 struct DrumBeat(Timer);
 
-fn clock(time: Res<Time>, mut timer: ResMut<DrumBeat>, mut query: Query<&mut DrumBeat>) {
+fn clock(time: Res<Time>, mut timer: ResMut<DrumBeat>, _query: Query<&mut DrumBeat>) {
     if timer.0.tick(time.delta()).just_finished() {
         info!("tick = {:?}", time.delta());
     }
@@ -89,7 +89,7 @@ fn setup(
         ..Default::default()
     });
     // camera
-    commands.spawn_bundle(PerspectiveCameraBundle {
+    commands.spawn_bundle(Camera3dBundle {
         transform: Transform::from_translation(Vec3::new(-2.0, 2.5, 5.0))
             .looking_at(Vec3::default(), Vec3::Y),
         ..Default::default()
@@ -99,7 +99,7 @@ fn setup(
 fn update_mouse_motion(
     mut event_reader: EventReader<MouseMotion>,
     _events: Res<Events<MouseMotion>>,
-    mut cameras: Query<(&mut GlobalTransform, &mut PerspectiveProjection), With<Camera>>,
+    mut cameras: Query<&mut Transform, With<Camera>>,
 ) {
     let delta = event_reader
         .iter()
@@ -108,10 +108,7 @@ fn update_mouse_motion(
         return
     }
 
-    let (mut camera, _proj) = cameras
-        .iter_mut()
-        .next()
-        .expect("could not find an orthographic camera");
+    let mut camera = cameras.get_single_mut().expect("could not find scene camera");
     info!("camera = {:?}", camera);
 
     camera.translation += Vec3::new(0.1, 0.0, 0.0);

@@ -17,9 +17,9 @@ winit = "*"
 web-sys = "*"
 
 [dependencies.bevy]
-version = "0.7"
+version = "0.8"
 default-features = false
-features = ["bevy_winit", "bevy_gltf", "render", "png"]
+features = ["bevy_winit", "bevy_asset", "bevy_gltf", "render", "png"]
 
 [profile.dev]
 opt-level = 1
