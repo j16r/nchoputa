@@ -31,7 +31,7 @@ pub fn main() {
             title: "ncho".to_string(),
             width: window.inner_width().unwrap().as_f64().unwrap() as f32,
             height: window.inner_height().unwrap().as_f64().unwrap() as f32,
-            resizable: true,
+            fit_canvas_to_parent: true,
             decorations: false,
             ..Default::default()
         })
