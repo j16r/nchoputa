@@ -23,16 +23,11 @@ mod wasm {
 pub fn main() {
     trace!("nchoputa viewer starting up...");
 
-    let window = web_sys::window().unwrap();
-
     let mut app = App::new();
     app.insert_resource(Msaa { samples: 4 })
         .insert_resource(WindowDescriptor {
             title: "ncho".to_string(),
-            width: window.inner_width().unwrap().as_f64().unwrap() as f32,
-            height: window.inner_height().unwrap().as_f64().unwrap() as f32,
             fit_canvas_to_parent: true,
-            decorations: false,
             ..Default::default()
         })
         .insert_resource(DrumBeat(Timer::from_seconds(1.0, true)))
