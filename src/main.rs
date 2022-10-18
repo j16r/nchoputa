@@ -1,7 +1,5 @@
 use actix_files as fs;
-use actix_web::{
-    get, http::header, middleware, web, App, HttpRequest, HttpResponse, HttpServer, Result,
-};
+use actix_web::{get, http::header, middleware, web, App, HttpResponse, HttpServer, Result};
 use tracing::info;
 
 #[get("/favicon.ico")]
