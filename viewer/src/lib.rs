@@ -2,7 +2,6 @@ use tracing::{debug, trace};
 use bevy::prelude::*;
 use bevy::{
     ecs::event::{Events, EventReader},
-    window::WindowResized,
     input::mouse::MouseMotion,
     math::Vec2,
     render::camera::Camera,
@@ -33,20 +32,11 @@ pub fn main() {
         .insert_resource(DrumBeat(Timer::from_seconds(1.0, true)))
         .add_plugins(DefaultPlugins)
         .add_startup_system(setup)
-        .add_system(resize_notificator)
         .add_system(update_mouse_motion)
         .add_system(clock)
         .run();
 
     trace!("start up done");
-}
-
-// XXX: bevy doesn't yet support window resizing
-fn resize_notificator(mut resize_events: EventReader<WindowResized>) {
-    debug!("got resize");
-    for e in resize_events.iter() {
-        println!("width = {} height = {}", e.width, e.height);
-    }
 }
 
 #[derive(Component, Deref, DerefMut)]
