@@ -1,15 +1,18 @@
-use tracing::{debug, trace};
 use bevy::prelude::*;
 use bevy::{
-    ecs::event::{Events, EventReader},
+    ecs::event::{EventReader, Events},
     input::mouse::MouseMotion,
     math::Vec2,
     render::camera::Camera,
+    render::mesh::Mesh,
+    render::render_resource::PrimitiveTopology,
+    sprite::MaterialMesh2dBundle,
 };
+use tracing::trace;
 
 mod wasm {
+
     use wasm_bindgen::prelude::*;
-    use console_error_panic_hook;
 
     #[wasm_bindgen(start)]
     pub fn run() {
@@ -48,37 +51,56 @@ fn clock(time: Res<Time>, mut timer: ResMut<DrumBeat>, _query: Query<&mut DrumBe
     }
 }
 
-/// set up a simple 3D scene
 fn setup(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
-    // add entities to the world
-    // plane
-    commands.spawn_bundle(PbrBundle {
-        mesh: meshes.add(Mesh::from(shape::Plane { size: 5.0 })),
-        material: materials.add(Color::rgb(0.3, 0.5, 0.3).into()),
-        ..Default::default()
+    commands.spawn().insert_bundle(MaterialMesh2dBundle {
+        mesh: bevy::sprite::Mesh2dHandle(meshes.add(Mesh::from(LineGraph {
+            points: vec![
+                Vec3::ZERO,
+                Vec3::new(100.0, 100.0, 0.0),
+                Vec3::new(100.0, 0.0, 0.0),
+                Vec3::new(0.0, 100.0, 0.0),
+            ],
+        }))),
+        transform: Transform::from_xyz(0.5, 0.0, 0.0),
+        material: materials.add(Color::BLUE.into()),
+        ..default()
     });
-    // cube
-    commands.spawn_bundle(PbrBundle {
-        mesh: meshes.add(Mesh::from(shape::Cube { size: 1.0 })),
-        material: materials.add(Color::rgb(0.8, 0.7, 0.6).into()),
-        transform: Transform::from_translation(Vec3::new(0.0, 0.5, 0.0)),
-        ..Default::default()
-    });
-    // light
-    commands.spawn_bundle(PointLightBundle {
-        transform: Transform::from_translation(Vec3::new(4.0, 8.0, 4.0)),
-        ..Default::default()
-    });
-    // camera
-    commands.spawn_bundle(Camera3dBundle {
-        transform: Transform::from_translation(Vec3::new(-2.0, 2.5, 5.0))
-            .looking_at(Vec3::default(), Vec3::Y),
-        ..Default::default()
-    });
+
+    commands.spawn_bundle(Camera2dBundle::default());
+}
+
+#[derive(Debug, Clone)]
+pub struct LineGraph {
+    pub points: Vec<Vec3>,
+}
+
+impl From<LineGraph> for Mesh {
+    fn from(line: LineGraph) -> Self {
+        let mut vertices = vec![];
+        let mut normals = vec![];
+        let mut uvs = vec![];
+        for pos in line.points {
+            vertices.push(pos.to_array());
+            normals.push(Vec3::ZERO.to_array());
+            uvs.push([0.0; 2]);
+        }
+
+        // This tells wgpu that the positions are a list of points
+        // where a line will be drawn between each consecutive point
+        let mut mesh = Mesh::new(PrimitiveTopology::LineStrip);
+
+        mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, vertices);
+
+        // Normals are currently required by bevy, but they aren't used by the [`LineMaterial`]
+        mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, normals);
+
+        mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, uvs);
+        mesh
+    }
 }
 
 fn update_mouse_motion(
@@ -86,15 +108,15 @@ fn update_mouse_motion(
     _events: Res<Events<MouseMotion>>,
     mut cameras: Query<&mut Transform, With<Camera>>,
 ) {
-    let delta = event_reader
-        .iter()
-        .fold(Vec2::ZERO, |acc, e| acc + e.delta);
+    let delta = event_reader.iter().fold(Vec2::ZERO, |acc, e| acc + e.delta);
     if delta == Vec2::ZERO {
-        return
+        return;
     }
 
-    let mut camera = cameras.get_single_mut().expect("could not find scene camera");
+    let mut camera = cameras
+        .get_single_mut()
+        .expect("could not find scene camera");
     info!("camera = {:?}", camera);
 
-    camera.translation += Vec3::new(0.1, 0.0, 0.0);
+    camera.translation += Vec3::new(1.0, 0.0, 0.0);
 }
