@@ -57,15 +57,14 @@ fn setup(
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
     commands.spawn().insert_bundle(MaterialMesh2dBundle {
-        mesh: bevy::sprite::Mesh2dHandle(meshes.add(Mesh::from(LineGraph {
+        mesh: meshes.add(Mesh::from(LineGraph {
             points: vec![
                 Vec3::ZERO,
                 Vec3::new(100.0, 100.0, 0.0),
                 Vec3::new(100.0, 0.0, 0.0),
                 Vec3::new(0.0, 100.0, 0.0),
             ],
-        }))),
-        transform: Transform::from_xyz(0.5, 0.0, 0.0),
+        })).into(),
         material: materials.add(Color::BLUE.into()),
         ..default()
     });
