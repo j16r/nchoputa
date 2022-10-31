@@ -8,8 +8,13 @@ resolver = "2"
 [dependencies]
 actix-files = "*"
 actix-web = "*"
+serde = "*"
 tracing = "*"
 tracing-subscriber = "*"
+
+[dependencies.postcard]
+version = "1"
+features = ["alloc"]
 
 # FIXME: This does not install the binaries, see:
 # https://github.com/rust-lang/rfcs/blob/master/text/3028-cargo-binary-dependencies.md

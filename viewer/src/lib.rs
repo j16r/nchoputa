@@ -1,14 +1,15 @@
+use std::collections::HashMap;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
+
 use bevy::prelude::*;
 use bevy::{
-    ecs::event::{EventReader, Events},
-    input::mouse::MouseMotion,
-    math::Vec2,
-    render::camera::Camera,
-    render::mesh::Mesh,
-    render::render_resource::PrimitiveTopology,
-    sprite::{MaterialMesh2dBundle, Mesh2dHandle},
-    window::WindowResized,
+    ecs::event::EventReader, render::mesh::Mesh, render::render_resource::PrimitiveTopology,
+    sprite::MaterialMesh2dBundle, window::WindowResized,
 };
+use bevy_egui::{egui, EguiContext, EguiPlugin};
+use postcard::from_bytes;
+use serde::{Deserialize, Serialize};
 use tracing::trace;
 
 mod wasm {
@@ -34,14 +35,75 @@ pub fn main() {
             ..Default::default()
         })
         .insert_resource(DrumBeat(Timer::from_seconds(1.0, true)))
+        .insert_resource(State::new())
         .add_plugins(DefaultPlugins)
+        .add_plugin(EguiPlugin)
         .add_startup_system(setup)
-        // .add_system(update_mouse_motion)
-        .add_system(clock)
         .add_system(on_resize)
+        .add_system(ui)
+        .add_system(clock)
         .run();
 
     trace!("start up done");
+}
+
+#[derive(Serialize, Deserialize, Debug, Eq, PartialEq)]
+struct GraphList {
+    graphs: HashMap<String, String>,
+}
+
+struct State {
+    startup: bool,
+    loaded_legend: Arc<AtomicBool>,
+    graphs: Arc<Mutex<Option<GraphList>>>,
+}
+
+impl State {
+    fn new() -> Self {
+        State {
+            startup: true,
+            loaded_legend: default(),
+            graphs: default(),
+        }
+    }
+}
+
+fn ui(mut egui_context: ResMut<EguiContext>, mut state: ResMut<State>) {
+    if state.startup {
+        state.startup = false;
+
+        let legend_bool = state.loaded_legend.clone();
+        let graphs = state.graphs.clone();
+
+        let request = ehttp::Request::get("/api/graphs");
+        ehttp::fetch(request, move |result: ehttp::Result<ehttp::Response>| {
+            match result {
+                Ok(v) if v.status == 200 => {
+                    let g: GraphList = from_bytes(&v.bytes).unwrap();
+                    info!("got response {:?}", g);
+                    *graphs.lock().unwrap() = Some(g);
+                }
+                _ => {}
+            }
+            legend_bool.store(true, Ordering::SeqCst);
+        });
+    }
+
+    if state.loaded_legend.load(Ordering::SeqCst) {
+        if let Some(graph_list) = &*state.graphs.lock().unwrap() {
+            egui::Window::new("Datasets")
+                .vscroll(true)
+                .default_pos(egui::Pos2 {
+                    x: -100.0,
+                    y: -50.0,
+                })
+                .show(egui_context.ctx_mut(), |ui| {
+                    for (label, _) in graph_list.graphs.iter() {
+                        ui.checkbox(&mut false, label);
+                    }
+                });
+        }
+    }
 }
 
 #[derive(Component, Deref, DerefMut)]
@@ -106,12 +168,12 @@ impl Axes {
     fn new() -> Self {
         Axes {
             x: Scale {
-                label: "???".to_string(),
+                label: "x".to_string(),
                 min: 0.0,
                 max: 100.0,
             },
             y: Scale {
-                label: "???".to_string(),
+                label: "y".to_string(),
                 min: 0.0,
                 max: 100.0,
             },
@@ -126,7 +188,7 @@ impl From<&Axes> for Mesh {
         let mut normals = vec![];
         let mut uvs = vec![];
 
-        let padding = this.view_size.width * 0.1;
+        let padding = this.view_size.width * 0.08;
         let min_x = (this.view_size.width - padding) / 2.0;
         let min_y = (this.view_size.height - padding) / 2.0;
 
@@ -184,24 +246,6 @@ impl From<LineGraph> for Mesh {
     }
 }
 
-fn update_mouse_motion(
-    mut event_reader: EventReader<MouseMotion>,
-    _events: Res<Events<MouseMotion>>,
-    mut cameras: Query<&mut Transform, With<Camera>>,
-) {
-    let delta = event_reader.iter().fold(Vec2::ZERO, |acc, e| acc + e.delta);
-    if delta == Vec2::ZERO {
-        return;
-    }
-
-    let mut camera = cameras
-        .get_single_mut()
-        .expect("could not find scene camera");
-    info!("camera = {:?}", camera);
-
-    camera.translation += Vec3::new(1.0, 0.0, 0.0);
-}
-
 fn on_resize(
     mut resize_reader: EventReader<WindowResized>,
     mut axes: Query<(&mut Axes, &Handle<Mesh>)>,
@@ -212,6 +256,6 @@ fn on_resize(
         axes.view_size.width = e.width;
         axes.view_size.height = e.height;
         info!("resize {:.1} x {:.1}", e.width, e.height);
-        meshes.set(handle, Mesh::from(&*axes).into());
+        meshes.set(handle, Mesh::from(&*axes));
     }
 }

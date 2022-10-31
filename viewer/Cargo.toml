@@ -9,12 +9,16 @@ resolver = "2"
 crate-type = ["cdylib"]
 
 [dependencies]
+bevy_egui = "0.16"
 console_error_panic_hook = "*"
+ehttp = "0.2.0"
+postcard = "1"
+serde = "*"
 tracing = "*"
 tracing-wasm = "*"
 wasm-bindgen = "*"
-winit = "*"
 web-sys = "*"
+winit = "*"
 
 [dependencies.bevy]
 version = "0.8"
