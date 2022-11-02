@@ -6,6 +6,7 @@ use bevy::prelude::*;
 use bevy::{
     ecs::event::EventReader, render::mesh::Mesh, render::render_resource::PrimitiveTopology,
     sprite::MaterialMesh2dBundle, window::WindowResized,
+    input::mouse::MouseWheel,
 };
 use bevy_egui::{egui, EguiContext, EguiPlugin};
 use chrono::{Datelike, NaiveDate};
@@ -44,6 +45,7 @@ pub fn main() {
         .add_system(on_resize)
         .add_system(graph_added_listener)
         .add_system(ui)
+        .add_system(on_mousewheel)
         .add_system(clock)
         .run();
 
@@ -183,6 +185,7 @@ fn graph_added_listener(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
+    mut cameras: Query<&mut Transform, With<Camera>>,
     mut axes: Query<(&mut Axes, &Handle<Mesh>)>,
 ) {
     for event in events.iter() {
@@ -227,6 +230,20 @@ fn graph_added_listener(
             .iter()
             .map(|(_, a)| a)
             .fold(f32::NEG_INFINITY, |a, b| a.max(*b));
+
+        let mut camera = cameras
+            .get_single_mut()
+            .expect("could not find scene camera");
+        info!("camera = {:?}", camera);
+
+        let camera_x = axes.x.min + (axes.x.max - axes.x.min) / 2.0;
+        let camera_y = axes.y.min + (axes.y.max - axes.y.min) / 2.0;
+        camera.translation += Vec3::new(camera_x, camera_y, 0.0);
+        info!("after translation, camera = {:?}", camera);
+
+        camera.scale.x = camera_x / camera_y;
+        camera.scale.y = camera_y / camera_x;
+        info!("after scaling, camera = {:?}", camera);
 
         info!("new axes: {:?}", axes);
         let _ = meshes.set(handle, Mesh::from(&*axes));
@@ -355,6 +372,30 @@ impl From<LineGraph> for Mesh {
 
         mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, uvs);
         mesh
+    }
+}
+
+fn on_mousewheel(
+    mut event_reader: EventReader<MouseWheel>,
+    mut cameras: Query<&mut Transform, With<Camera>>,
+) {
+    for e in event_reader.iter() {
+        info!("event = {:?}", e);
+
+        let mut camera = cameras
+            .get_single_mut()
+            .expect("could not find scene camera");
+        info!("camera = {:?}", camera);
+
+        let factor = e.y / 10.0;
+        camera.scale += Vec3::new(factor, factor, 0.0);
+        if camera.scale.x < 1.0 {
+            camera.scale.x = 1.0;
+        }
+        if camera.scale.y < 1.0 {
+            camera.scale.y = 1.0;
+        }
+        info!("camera = {:?}", camera);
     }
 }
 
