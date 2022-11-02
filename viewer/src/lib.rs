@@ -84,7 +84,13 @@ impl State {
 
 // thoughts:
 // egui is immediate, bevy is not, this is a slight impedance mismatch
-fn ui(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>, mut materials: ResMut<Assets<ColorMaterial>>, mut egui_context: ResMut<EguiContext>, mut state: ResMut<State>) {
+fn ui(
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
+    mut egui_context: ResMut<EguiContext>,
+    mut state: ResMut<State>,
+) {
     if state.startup {
         state.startup = false;
 
@@ -125,25 +131,30 @@ fn ui(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>, mut materials: R
                     let enabled = fetching.get(label).is_none();
                     ui.add_enabled_ui(enabled, |ui| {
                         if ui.checkbox(&mut present, label).clicked() {
-                            graphs.insert(label.clone(), url.clone());
-                            fetching.insert(label.clone(), url.clone());
+                            if present {
+                                graphs.insert(label.clone(), url.clone());
+                                fetching.insert(label.clone(), url.clone());
 
-                            let request = ehttp::Request::get(url);
+                                let request = ehttp::Request::get(url);
 
-                            let label = label.clone();
-                            let loaded_graphs = state.loaded_graphs.clone();
-                            let fetchin_graphs = state.fetching_graphs.clone();
-                            ehttp::fetch(request, move |result: ehttp::Result<ehttp::Response>| {
-                                match result {
-                                    Ok(v) if v.status == 200 => {
-                                        let graph: Graph = from_bytes(&v.bytes).unwrap();
-                                        info!("got graph {:?}", graph);
-                                        fetchin_graphs.lock().unwrap().remove(&label);
-                                        loaded_graphs.lock().unwrap().insert(label, graph);
+                                let label = label.clone();
+                                let loaded_graphs = state.loaded_graphs.clone();
+                                let fetchin_graphs = state.fetching_graphs.clone();
+                                ehttp::fetch(
+                                    request,
+                                    move |result: ehttp::Result<ehttp::Response>| match result {
+                                        Ok(v) if v.status == 200 => {
+                                            let graph: Graph = from_bytes(&v.bytes).unwrap();
+                                            info!("got graph {:?}", graph);
+                                            fetchin_graphs.lock().unwrap().remove(&label);
+                                            loaded_graphs.lock().unwrap().insert(label, graph);
+                                        }
+                                        _ => {}
                                     },
-                                    _ => {}
-                                }
-                            });
+                                );
+                            } else {
+                                graphs.remove(label);
+                            }
                         }
                     });
                 }
@@ -159,7 +170,9 @@ fn ui(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>, mut materials: R
 
         commands.spawn().insert_bundle(MaterialMesh2dBundle {
             mesh: meshes
-                .add(Mesh::from(LineGraph {points: graph_points}))
+                .add(Mesh::from(LineGraph {
+                    points: graph_points,
+                }))
                 .into(),
             material: materials.add(Color::YELLOW.into()),
             ..default()
