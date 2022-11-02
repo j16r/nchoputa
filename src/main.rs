@@ -26,10 +26,10 @@ async fn list_graphs() -> impl Responder {
     };
     graph_list
         .graphs
-        .insert("csiro".to_string(), "/api/graphs/csiro".to_string());
+        .insert("CSIRO".to_string(), "/api/graphs/csiro".to_string());
     graph_list
         .graphs
-        .insert("uhslc".to_string(), "/api/graphs/uhslc".to_string());
+        .insert("UHSLC".to_string(), "/api/graphs/uhslc".to_string());
     to_allocvec(&graph_list).unwrap()
 }
 

@@ -64,6 +64,9 @@ struct State {
     startup: bool,
     loaded_legend: Arc<AtomicBool>,
     graph_list: Arc<Mutex<Option<GraphList>>>,
+    fetching_graphs: Arc<Mutex<HashMap<String, String>>>,
+    graphs: Arc<Mutex<HashMap<String, String>>>,
+    loaded_graphs: Arc<Mutex<HashMap<String, Graph>>>,
 }
 
 impl State {
@@ -72,16 +75,21 @@ impl State {
             startup: true,
             loaded_legend: default(),
             graph_list: default(),
+            fetching_graphs: default(),
+            graphs: default(),
+            loaded_graphs: default(),
         }
     }
 }
 
-fn ui(mut egui_context: ResMut<EguiContext>, mut state: ResMut<State>) {
+// thoughts:
+// egui is immediate, bevy is not, this is a slight impedance mismatch
+fn ui(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>, mut materials: ResMut<Assets<ColorMaterial>>, mut egui_context: ResMut<EguiContext>, mut state: ResMut<State>) {
     if state.startup {
         state.startup = false;
 
-        let legend_bool = state.loaded_legend.clone();
         let graph_list = state.graph_list.clone();
+        let legend_bool = state.loaded_legend.clone();
 
         let request = ehttp::Request::get("/api/graphs");
         ehttp::fetch(request, move |result: ehttp::Result<ehttp::Response>| {
@@ -98,31 +106,65 @@ fn ui(mut egui_context: ResMut<EguiContext>, mut state: ResMut<State>) {
     }
 
     if state.loaded_legend.load(Ordering::SeqCst) {
-        if let Some(graph_list) = &*state.graph_list.lock().unwrap() {
-            egui::Window::new("Datasets")
-                .vscroll(true)
-                .default_pos(egui::Pos2 {
-                    x: -100.0,
-                    y: -50.0,
-                })
-                .show(egui_context.ctx_mut(), |ui| {
-                    for (label, url) in graph_list.graphs.iter() {
-                        if ui.checkbox(&mut false, label).clicked() {
+        let graph_list = state.graph_list.clone();
+        let fetching_graphs = state.fetching_graphs.clone();
+        let graphs = state.graphs.clone();
+
+        egui::Window::new("Datasets")
+            .vscroll(true)
+            .resizable(false)
+            .anchor(egui::Align2::RIGHT_TOP, [-100.0, 100.0])
+            .show(egui_context.ctx_mut(), |ui| {
+                let graph_list = graph_list.lock().unwrap();
+                for (label, url) in graph_list.as_ref().unwrap().graphs.iter() {
+                    let graphs = graphs.lock().unwrap();
+                    let graph = graphs.get(label);
+                    let mut present = graph.is_some();
+
+                    let mut fetching = fetching_graphs.lock().unwrap();
+                    let enabled = !present && fetching.get(label).is_none();
+                    ui.add_enabled_ui(enabled, |ui| {
+                        if ui.checkbox(&mut present, label).clicked() {
+                            fetching.insert(label.clone(), url.clone());
+
+                            let label = label.clone();
                             let request = ehttp::Request::get(url);
+
+                            let loaded_graphs = state.loaded_graphs.clone();
+                            let fetchin_graphs = state.fetching_graphs.clone();
                             ehttp::fetch(request, move |result: ehttp::Result<ehttp::Response>| {
                                 match result {
                                     Ok(v) if v.status == 200 => {
-                                        let g: Graph = from_bytes(&v.bytes).unwrap();
-                                        info!("got graph {:?}", g);
+                                        let graph: Graph = from_bytes(&v.bytes).unwrap();
+                                        info!("got graph {:?}", graph);
+                                        fetchin_graphs.lock().unwrap().remove(&label);
+                                        loaded_graphs.lock().unwrap().insert(label, graph);
                                     },
                                     _ => {}
                                 }
                             });
                         }
-                    }
-                });
-        }
+                    });
+                }
+            });
     }
+
+    let mut loaded_graphs = state.loaded_graphs.lock().unwrap();
+    for (name, graph) in loaded_graphs.iter() {
+        let mut graph_points = Vec::new();
+        for (i, (x, y)) in graph.points.iter().enumerate() {
+            graph_points.push(Vec3::new(i as f32, *y, 0.0));
+        }
+
+        commands.spawn().insert_bundle(MaterialMesh2dBundle {
+            mesh: meshes
+                .add(Mesh::from(LineGraph {points: graph_points}))
+                .into(),
+            material: materials.add(Color::YELLOW.into()),
+            ..default()
+        });
+    }
+    loaded_graphs.clear();
 }
 
 #[derive(Component, Deref, DerefMut)]
@@ -139,21 +181,6 @@ fn setup(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
-    // commands.spawn().insert_bundle(MaterialMesh2dBundle {
-    //     mesh: meshes
-    //         .add(Mesh::from(LineGraph {
-    //             points: vec![
-    //                 Vec3::ZERO,
-    //                 Vec3::new(100.0, 100.0, 0.0),
-    //                 Vec3::new(100.0, 0.0, 0.0),
-    //                 Vec3::new(0.0, 100.0, 0.0),
-    //             ],
-    //         }))
-    //         .into(),
-    //     material: materials.add(Color::BLUE.into()),
-    //     ..default()
-    // });
-
     let axes = Axes::new();
     let mesh_bundle = MaterialMesh2dBundle {
         mesh: meshes.add(Mesh::from(&axes)).into(),
