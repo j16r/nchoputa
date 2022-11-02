@@ -8,6 +8,7 @@ use bevy::{
     sprite::MaterialMesh2dBundle, window::WindowResized,
 };
 use bevy_egui::{egui, EguiContext, EguiPlugin};
+use chrono::NaiveDate;
 use postcard::from_bytes;
 use serde::{Deserialize, Serialize};
 use tracing::trace;
@@ -52,10 +53,17 @@ struct GraphList {
     graphs: HashMap<String, String>,
 }
 
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
+struct Graph {
+    // x: Scale,
+    // y: Scale,
+    points: Vec<(NaiveDate, f32)>,
+}
+
 struct State {
     startup: bool,
     loaded_legend: Arc<AtomicBool>,
-    graphs: Arc<Mutex<Option<GraphList>>>,
+    graph_list: Arc<Mutex<Option<GraphList>>>,
 }
 
 impl State {
@@ -63,7 +71,7 @@ impl State {
         State {
             startup: true,
             loaded_legend: default(),
-            graphs: default(),
+            graph_list: default(),
         }
     }
 }
@@ -73,15 +81,15 @@ fn ui(mut egui_context: ResMut<EguiContext>, mut state: ResMut<State>) {
         state.startup = false;
 
         let legend_bool = state.loaded_legend.clone();
-        let graphs = state.graphs.clone();
+        let graph_list = state.graph_list.clone();
 
         let request = ehttp::Request::get("/api/graphs");
         ehttp::fetch(request, move |result: ehttp::Result<ehttp::Response>| {
             match result {
                 Ok(v) if v.status == 200 => {
-                    let g: GraphList = from_bytes(&v.bytes).unwrap();
-                    info!("got response {:?}", g);
-                    *graphs.lock().unwrap() = Some(g);
+                    let list: GraphList = from_bytes(&v.bytes).unwrap();
+                    info!("got response {:?}", list);
+                    *graph_list.lock().unwrap() = Some(list);
                 }
                 _ => {}
             }
@@ -90,7 +98,7 @@ fn ui(mut egui_context: ResMut<EguiContext>, mut state: ResMut<State>) {
     }
 
     if state.loaded_legend.load(Ordering::SeqCst) {
-        if let Some(graph_list) = &*state.graphs.lock().unwrap() {
+        if let Some(graph_list) = &*state.graph_list.lock().unwrap() {
             egui::Window::new("Datasets")
                 .vscroll(true)
                 .default_pos(egui::Pos2 {
@@ -98,8 +106,19 @@ fn ui(mut egui_context: ResMut<EguiContext>, mut state: ResMut<State>) {
                     y: -50.0,
                 })
                 .show(egui_context.ctx_mut(), |ui| {
-                    for (label, _) in graph_list.graphs.iter() {
-                        ui.checkbox(&mut false, label);
+                    for (label, url) in graph_list.graphs.iter() {
+                        if ui.checkbox(&mut false, label).clicked() {
+                            let request = ehttp::Request::get(url);
+                            ehttp::fetch(request, move |result: ehttp::Result<ehttp::Response>| {
+                                match result {
+                                    Ok(v) if v.status == 200 => {
+                                        let g: Graph = from_bytes(&v.bytes).unwrap();
+                                        info!("got graph {:?}", g);
+                                    },
+                                    _ => {}
+                                }
+                            });
+                        }
                     }
                 });
         }
@@ -120,20 +139,20 @@ fn setup(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
-    commands.spawn().insert_bundle(MaterialMesh2dBundle {
-        mesh: meshes
-            .add(Mesh::from(LineGraph {
-                points: vec![
-                    Vec3::ZERO,
-                    Vec3::new(100.0, 100.0, 0.0),
-                    Vec3::new(100.0, 0.0, 0.0),
-                    Vec3::new(0.0, 100.0, 0.0),
-                ],
-            }))
-            .into(),
-        material: materials.add(Color::BLUE.into()),
-        ..default()
-    });
+    // commands.spawn().insert_bundle(MaterialMesh2dBundle {
+    //     mesh: meshes
+    //         .add(Mesh::from(LineGraph {
+    //             points: vec![
+    //                 Vec3::ZERO,
+    //                 Vec3::new(100.0, 100.0, 0.0),
+    //                 Vec3::new(100.0, 0.0, 0.0),
+    //                 Vec3::new(0.0, 100.0, 0.0),
+    //             ],
+    //         }))
+    //         .into(),
+    //     material: materials.add(Color::BLUE.into()),
+    //     ..default()
+    // });
 
     let axes = Axes::new();
     let mesh_bundle = MaterialMesh2dBundle {
@@ -150,7 +169,7 @@ fn setup(
     commands.spawn_bundle(Camera2dBundle::default());
 }
 
-#[derive(Debug, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct Scale {
     pub label: String,
     pub min: f32,

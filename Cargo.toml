@@ -8,6 +8,8 @@ resolver = "2"
 [dependencies]
 actix-files = "*"
 actix-web = "*"
+chrono = { version = "*", features = [ "serde" ] }
+csv = "*"
 serde = "*"
 tracing = "*"
 tracing-subscriber = "*"

@@ -10,6 +10,7 @@ crate-type = ["cdylib"]
 
 [dependencies]
 bevy_egui = "0.16"
+chrono = { version = "*", features = [ "serde" ] }
 console_error_panic_hook = "*"
 ehttp = "0.2.0"
 postcard = "1"
