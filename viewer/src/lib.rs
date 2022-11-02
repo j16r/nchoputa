@@ -8,7 +8,7 @@ use bevy::{
     sprite::MaterialMesh2dBundle, window::WindowResized,
 };
 use bevy_egui::{egui, EguiContext, EguiPlugin};
-use chrono::NaiveDate;
+use chrono::{Datelike, NaiveDate};
 use postcard::from_bytes;
 use serde::{Deserialize, Serialize};
 use tracing::trace;
@@ -37,10 +37,12 @@ pub fn main() {
         })
         .insert_resource(DrumBeat(Timer::from_seconds(1.0, true)))
         .insert_resource(State::new())
+        .add_event::<EventGraphAdded>()
         .add_plugins(DefaultPlugins)
         .add_plugin(EguiPlugin)
         .add_startup_system(setup)
         .add_system(on_resize)
+        .add_system(graph_added_listener)
         .add_system(ui)
         .add_system(clock)
         .run();
@@ -53,7 +55,7 @@ struct GraphList {
     graphs: HashMap<String, String>,
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq)]
+#[derive(Serialize, Clone, Deserialize, Debug, PartialEq)]
 struct Graph {
     // x: Scale,
     // y: Scale,
@@ -82,14 +84,16 @@ impl State {
     }
 }
 
+struct EventGraphAdded {
+    graph: Graph,
+}
+
 // thoughts:
 // egui is immediate, bevy is not, this is a slight impedance mismatch
 fn ui(
-    mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<ColorMaterial>>,
     mut egui_context: ResMut<EguiContext>,
     mut state: ResMut<State>,
+    mut events: EventWriter<EventGraphAdded>,
 ) {
     if state.startup {
         state.startup = false;
@@ -162,10 +166,32 @@ fn ui(
     }
 
     let mut loaded_graphs = state.loaded_graphs.lock().unwrap();
-    for (name, graph) in loaded_graphs.iter() {
+    for (_, graph) in loaded_graphs.iter() {
+        events.send(EventGraphAdded {
+            graph: graph.clone(),
+        });
+    }
+    loaded_graphs.clear();
+}
+
+fn date_scale(date: &NaiveDate) -> f32 {
+    date.day() as f32 + date.month() as f32 * 100.0 + date.year() as f32 * 10000.0
+}
+
+fn graph_added_listener(
+    mut events: EventReader<EventGraphAdded>,
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
+    mut axes: Query<(&mut Axes, &Handle<Mesh>)>,
+) {
+    for event in events.iter() {
+        let graph = &event.graph;
+
         let mut graph_points = Vec::new();
-        for (i, (x, y)) in graph.points.iter().enumerate() {
-            graph_points.push(Vec3::new(i as f32, *y, 0.0));
+        for (date, y) in graph.points.iter() {
+            let x = date_scale(&date);
+            graph_points.push(Vec3::new(x as f32, *y, 0.0));
         }
 
         commands.spawn().insert_bundle(MaterialMesh2dBundle {
@@ -177,8 +203,34 @@ fn ui(
             material: materials.add(Color::YELLOW.into()),
             ..default()
         });
+
+        // Recalculate the scales
+        let (mut axes, handle) = axes.get_single_mut().unwrap();
+        axes.x.min = graph
+            .points
+            .iter()
+            .map(|(a, _)| date_scale(&a))
+            .fold(f32::INFINITY, |a, b| a.min(b));
+        axes.x.max = graph
+            .points
+            .iter()
+            .map(|(a, _)| date_scale(&a))
+            .fold(f32::NEG_INFINITY, |a, b| a.max(b));
+
+        axes.y.min = graph
+            .points
+            .iter()
+            .map(|(_, a)| a)
+            .fold(f32::INFINITY, |a, b| a.min(*b));
+        axes.y.max = graph
+            .points
+            .iter()
+            .map(|(_, a)| a)
+            .fold(f32::NEG_INFINITY, |a, b| a.max(*b));
+
+        info!("new axes: {:?}", axes);
+        let _ = meshes.set(handle, Mesh::from(&*axes));
     }
-    loaded_graphs.clear();
 }
 
 #[derive(Component, Deref, DerefMut)]
