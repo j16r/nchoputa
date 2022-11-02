@@ -117,19 +117,20 @@ fn ui(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>, mut materials: R
             .show(egui_context.ctx_mut(), |ui| {
                 let graph_list = graph_list.lock().unwrap();
                 for (label, url) in graph_list.as_ref().unwrap().graphs.iter() {
-                    let graphs = graphs.lock().unwrap();
+                    let mut graphs = graphs.lock().unwrap();
                     let graph = graphs.get(label);
                     let mut present = graph.is_some();
 
                     let mut fetching = fetching_graphs.lock().unwrap();
-                    let enabled = !present && fetching.get(label).is_none();
+                    let enabled = fetching.get(label).is_none();
                     ui.add_enabled_ui(enabled, |ui| {
                         if ui.checkbox(&mut present, label).clicked() {
+                            graphs.insert(label.clone(), url.clone());
                             fetching.insert(label.clone(), url.clone());
 
-                            let label = label.clone();
                             let request = ehttp::Request::get(url);
 
+                            let label = label.clone();
                             let loaded_graphs = state.loaded_graphs.clone();
                             let fetchin_graphs = state.fetching_graphs.clone();
                             ehttp::fetch(request, move |result: ehttp::Result<ehttp::Response>| {
