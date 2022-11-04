@@ -4,9 +4,10 @@ use std::sync::{Arc, Mutex};
 
 use bevy::prelude::*;
 use bevy::{
-    ecs::event::EventReader, input::mouse::MouseButton, input::mouse::MouseMotion,
-    input::mouse::MouseWheel, render::mesh::Mesh, render::render_resource::PrimitiveTopology,
-    sprite::MaterialMesh2dBundle, window::WindowResized,
+    core_pipeline::clear_color::ClearColorConfig, ecs::event::EventReader,
+    input::mouse::MouseButton, input::mouse::MouseMotion, input::mouse::MouseWheel,
+    render::mesh::Mesh, render::render_resource::PrimitiveTopology, sprite::MaterialMesh2dBundle,
+    window::WindowResized,
 };
 use bevy_egui::{egui, EguiContext, EguiPlugin};
 use chrono::NaiveDate;
@@ -184,7 +185,7 @@ fn graph_added_listener(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
-    mut cameras: Query<&mut Transform, With<Camera>>,
+    mut cameras: Query<&mut Transform, (With<Camera>, With<SceneCamera>)>,
     mut axes: Query<(&mut Axes, &Handle<Mesh>)>,
 ) {
     for event in events.iter() {
@@ -251,13 +252,20 @@ fn graph_added_listener(
     }
 }
 
+#[derive(Component)]
+struct SceneCamera;
+
+#[derive(Component)]
+struct OverlayCamera;
+
 fn setup(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
-    // Scene camera, where the graphs live
-    commands.spawn_bundle(Camera2dBundle::default());
+    commands
+        .spawn_bundle(Camera2dBundle::default())
+        .insert(SceneCamera);
 
     let axes = Axes::new();
     let mesh_bundle = MaterialMesh2dBundle {
@@ -265,6 +273,21 @@ fn setup(
         material: materials.add(Color::BLACK.into()),
         ..default()
     };
+
+    // Overlay camera, where axes etc. gets rendered
+    commands
+        .spawn_bundle(Camera2dBundle {
+            camera_2d: Camera2d {
+                clear_color: ClearColorConfig::None,
+            },
+            camera: Camera {
+                priority: 1,
+                ..default()
+            },
+            ..default()
+        })
+        .insert(OverlayCamera);
+
     commands
         .spawn()
         .insert(axes)
@@ -370,7 +393,7 @@ impl From<LineGraph> for Mesh {
 
 fn on_mousewheel(
     mut event_reader: EventReader<MouseWheel>,
-    mut cameras: Query<&mut Transform, With<Camera>>,
+    mut cameras: Query<&mut Transform, (With<Camera>, With<SceneCamera>)>,
 ) {
     for e in event_reader.iter() {
         let mut camera = cameras
@@ -389,7 +412,7 @@ fn on_mousewheel(
 fn on_mousemotion(
     mouse_button_input: Res<Input<MouseButton>>,
     mut event_reader: EventReader<MouseMotion>,
-    mut cameras: Query<&mut Transform, With<Camera>>,
+    mut cameras: Query<&mut Transform, (With<Camera>, With<SceneCamera>)>,
 ) {
     for e in event_reader.iter() {
         let mut camera = cameras
