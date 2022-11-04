@@ -361,6 +361,32 @@ impl From<&Axes> for Mesh {
     }
 }
 
+impl Axes {
+    fn update(&self, mesh: &mut Mesh) {
+        let mut vertices = vec![];
+        let mut normals = vec![];
+        let mut uvs = vec![];
+
+        let padding = self.view_size.width * 0.08;
+        let min_x = (self.view_size.width - padding) / 2.0;
+        let min_y = (self.view_size.height - padding) / 2.0;
+
+        vertices.push([-min_x, min_y, 0.0]);
+        vertices.push([-min_x, -min_y, 0.0]);
+        vertices.push([min_x, -min_y, 0.0]);
+        normals.push(Vec3::ZERO.to_array());
+        uvs.push([0.0; 2]);
+        normals.push(Vec3::ZERO.to_array());
+        uvs.push([0.0; 2]);
+        normals.push(Vec3::ZERO.to_array());
+        uvs.push([0.0; 2]);
+
+        mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, vertices);
+        mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, normals);
+        mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, uvs);
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct LineGraph {
     pub points: Vec<Vec3>,
@@ -434,9 +460,12 @@ fn on_resize(
 ) {
     let (mut axes, handle) = axes.get_single_mut().unwrap();
     for e in resize_reader.iter() {
+        info!("resize {:.1} x {:.1}", e.width, e.height);
+
         axes.view_size.width = e.width;
         axes.view_size.height = e.height;
-        info!("resize {:.1} x {:.1}", e.width, e.height);
-        meshes.set(handle, Mesh::from(&*axes));
+
+        let mut mesh = meshes.get_mut(handle).unwrap();
+        axes.update(&mut mesh);
     }
 }
