@@ -36,7 +36,6 @@ pub fn main() {
         fit_canvas_to_parent: true,
         ..Default::default()
     })
-    .insert_resource(DrumBeat(Timer::from_seconds(1.0, true)))
     .insert_resource(State::new())
     .add_event::<EventGraphAdded>()
     .add_plugins(DefaultPlugins)
@@ -47,7 +46,6 @@ pub fn main() {
     .add_system(ui)
     .add_system(on_mousewheel)
     .add_system(on_mousemotion)
-    .add_system(clock)
     .run();
 
     trace!("start up done");
@@ -250,15 +248,6 @@ fn graph_added_listener(
 
         info!("new axes: {:?}", axes);
         let _ = meshes.set(handle, Mesh::from(&*axes));
-    }
-}
-
-#[derive(Component, Deref, DerefMut)]
-struct DrumBeat(Timer);
-
-fn clock(time: Res<Time>, mut timer: ResMut<DrumBeat>, _query: Query<&mut DrumBeat>) {
-    if timer.0.tick(time.delta()).just_finished() {
-        info!("tick = {:?}", time.delta());
     }
 }
 
