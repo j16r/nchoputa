@@ -4,12 +4,12 @@ use std::sync::{Arc, Mutex};
 
 use bevy::prelude::*;
 use bevy::{
-    ecs::event::EventReader, render::mesh::Mesh, render::render_resource::PrimitiveTopology,
-    sprite::MaterialMesh2dBundle, window::WindowResized,
-    input::mouse::MouseWheel,
+    ecs::event::EventReader, input::mouse::MouseWheel, render::mesh::Mesh,
+    render::render_resource::PrimitiveTopology, sprite::MaterialMesh2dBundle,
+    window::WindowResized,
 };
 use bevy_egui::{egui, EguiContext, EguiPlugin};
-use chrono::{Datelike, NaiveDate};
+use chrono::NaiveDate;
 use postcard::from_bytes;
 use serde::{Deserialize, Serialize};
 use tracing::trace;
@@ -30,24 +30,23 @@ pub fn main() {
     trace!("nchoputa viewer starting up...");
 
     let mut app = App::new();
-    app.insert_resource(Msaa { samples: 4 })
-        .insert_resource(WindowDescriptor {
-            title: "ncho".to_string(),
-            fit_canvas_to_parent: true,
-            ..Default::default()
-        })
-        .insert_resource(DrumBeat(Timer::from_seconds(1.0, true)))
-        .insert_resource(State::new())
-        .add_event::<EventGraphAdded>()
-        .add_plugins(DefaultPlugins)
-        .add_plugin(EguiPlugin)
-        .add_startup_system(setup)
-        .add_system(on_resize)
-        .add_system(graph_added_listener)
-        .add_system(ui)
-        .add_system(on_mousewheel)
-        .add_system(clock)
-        .run();
+    app.insert_resource(WindowDescriptor {
+        title: "ncho".to_string(),
+        fit_canvas_to_parent: true,
+        ..Default::default()
+    })
+    .insert_resource(DrumBeat(Timer::from_seconds(1.0, true)))
+    .insert_resource(State::new())
+    .add_event::<EventGraphAdded>()
+    .add_plugins(DefaultPlugins)
+    .add_plugin(EguiPlugin)
+    .add_startup_system(setup)
+    .add_system(on_resize)
+    .add_system(graph_added_listener)
+    .add_system(ui)
+    .add_system(on_mousewheel)
+    .add_system(clock)
+    .run();
 
     trace!("start up done");
 }
@@ -193,8 +192,8 @@ fn graph_added_listener(
 
         let mut graph_points = Vec::new();
         for (date, y) in graph.points.iter() {
-            let x = date_scale(&date);
-            graph_points.push(Vec3::new(x as f32, *y, 0.0));
+            let x = date_scale(date);
+            graph_points.push(Vec3::new(x, *y, 0.0));
         }
 
         commands.spawn().insert_bundle(MaterialMesh2dBundle {
@@ -212,12 +211,12 @@ fn graph_added_listener(
         axes.x.min = graph
             .points
             .iter()
-            .map(|(a, _)| date_scale(&a))
+            .map(|(a, _)| date_scale(a))
             .fold(f32::INFINITY, |a, b| a.min(b));
         axes.x.max = graph
             .points
             .iter()
-            .map(|(a, _)| date_scale(&a))
+            .map(|(a, _)| date_scale(a))
             .fold(f32::NEG_INFINITY, |a, b| a.max(b));
 
         axes.y.min = graph
@@ -236,13 +235,15 @@ fn graph_added_listener(
             .expect("could not find scene camera");
         info!("camera = {:?}", camera);
 
+        // Reposition the camera to center over the graph
         let camera_x = axes.x.min + (axes.x.max - axes.x.min) / 2.0;
         let camera_y = axes.y.min + (axes.y.max - axes.y.min) / 2.0;
-        camera.translation += Vec3::new(camera_x, camera_y, 0.0);
+        camera.translation = Vec3::new(camera_x, camera_y, 0.0);
         info!("after translation, camera = {:?}", camera);
 
-        camera.scale.x = camera_x / camera_y;
-        camera.scale.y = camera_y / camera_x;
+        // Scale to fit the whole graph in
+        camera.scale.x = (axes.x.max - axes.x.min) / axes.view_size.width;
+        camera.scale.y = (axes.y.max - axes.y.min) / axes.view_size.height;
         info!("after scaling, camera = {:?}", camera);
 
         info!("new axes: {:?}", axes);
