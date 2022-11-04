@@ -18,6 +18,7 @@ mod wasm {
 
     use wasm_bindgen::prelude::*;
 
+    #[allow(non_snake_case)]
     #[wasm_bindgen(start)]
     pub fn run() {
         console_error_panic_hook::set_once();
