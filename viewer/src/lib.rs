@@ -382,22 +382,16 @@ fn on_mousewheel(
     mut cameras: Query<&mut Transform, With<Camera>>,
 ) {
     for e in event_reader.iter() {
-        info!("event = {:?}", e);
-
         let mut camera = cameras
             .get_single_mut()
             .expect("could not find scene camera");
-        info!("camera = {:?}", camera);
 
-        let factor = e.y / 10.0;
-        camera.scale += Vec3::new(factor, factor, 0.0);
-        if camera.scale.x < 1.0 {
-            camera.scale.x = 1.0;
-        }
-        if camera.scale.y < 1.0 {
-            camera.scale.y = 1.0;
-        }
-        info!("camera = {:?}", camera);
+        let factor = if e.y >= 0.0 {
+            e.y / 10.0
+        } else {
+            1.0 / (f32::abs(e.y) / 10.0)
+        };
+        camera.scale *= Vec3::new(factor, factor, 1.0);
     }
 }
 
