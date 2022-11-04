@@ -177,7 +177,7 @@ fn ui(
 }
 
 fn date_scale(date: &NaiveDate) -> f32 {
-    date.day() as f32 + date.month() as f32 * 100.0 + date.year() as f32 * 10000.0
+    (*date - NaiveDate::from_ymd(0, 1, 1)).num_days() as f32
 }
 
 fn graph_added_listener(
