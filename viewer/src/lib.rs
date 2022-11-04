@@ -4,9 +4,9 @@ use std::sync::{Arc, Mutex};
 
 use bevy::prelude::*;
 use bevy::{
-    ecs::event::EventReader, input::mouse::MouseWheel, render::mesh::Mesh,
-    render::render_resource::PrimitiveTopology, sprite::MaterialMesh2dBundle,
-    window::WindowResized,
+    ecs::event::EventReader, input::mouse::MouseButton, input::mouse::MouseMotion,
+    input::mouse::MouseWheel, render::mesh::Mesh, render::render_resource::PrimitiveTopology,
+    sprite::MaterialMesh2dBundle, window::WindowResized,
 };
 use bevy_egui::{egui, EguiContext, EguiPlugin};
 use chrono::NaiveDate;
@@ -46,6 +46,7 @@ pub fn main() {
     .add_system(graph_added_listener)
     .add_system(ui)
     .add_system(on_mousewheel)
+    .add_system(on_mousemotion)
     .add_system(clock)
     .run();
 
@@ -266,6 +267,9 @@ fn setup(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
+    // Scene camera, where the graphs live
+    commands.spawn_bundle(Camera2dBundle::default());
+
     let axes = Axes::new();
     let mesh_bundle = MaterialMesh2dBundle {
         mesh: meshes.add(Mesh::from(&axes)).into(),
@@ -277,8 +281,6 @@ fn setup(
         .insert(axes)
         .insert(mesh_bundle.mesh.0.clone())
         .insert_bundle(mesh_bundle);
-
-    commands.spawn_bundle(Camera2dBundle::default());
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
@@ -392,6 +394,24 @@ fn on_mousewheel(
             1.0 / (f32::abs(e.y) / 10.0)
         };
         camera.scale *= Vec3::new(factor, factor, 1.0);
+    }
+}
+
+fn on_mousemotion(
+    mouse_button_input: Res<Input<MouseButton>>,
+    mut event_reader: EventReader<MouseMotion>,
+    mut cameras: Query<&mut Transform, With<Camera>>,
+) {
+    for e in event_reader.iter() {
+        let mut camera = cameras
+            .get_single_mut()
+            .expect("could not find scene camera");
+
+        if mouse_button_input.pressed(MouseButton::Middle) {
+            let x = -e.delta.x * camera.scale.x;
+            let y = e.delta.y * camera.scale.y;
+            camera.translation += Vec3::new(x, y, 0.0);
+        }
     }
 }
 
