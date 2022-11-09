@@ -4,7 +4,6 @@ use std::sync::{Arc, Mutex};
 
 use bevy::prelude::*;
 use bevy::{
-    text::Text2dBounds,
     core_pipeline::clear_color::ClearColorConfig, ecs::event::EventReader,
     input::mouse::MouseButton, input::mouse::MouseMotion, input::mouse::MouseWheel,
     render::mesh::Mesh, render::render_resource::PrimitiveTopology, sprite::MaterialMesh2dBundle,
@@ -61,6 +60,9 @@ struct GraphName(String);
 
 #[derive(Component)]
 struct GraphPoints(Vec<(f32, f32)>);
+
+#[derive(Component)]
+struct GraphLabels(Vec<(NaiveDate, f32)>);
 
 struct State {
     startup: bool,
@@ -210,7 +212,9 @@ fn graph_added_listener(
 
         let mut mesh_points = Vec::new();
         let mut graph_points = Vec::new();
+        let mut graph_labels = Vec::new();
         for (date, y) in points.iter() {
+            graph_labels.push((*date, *y));
             let x = date_scale(date);
             graph_points.push((x, *y));
             mesh_points.push(Vec3::new(x, *y, 0.0));
@@ -229,6 +233,7 @@ fn graph_added_listener(
             .spawn()
             .insert(GraphName(event.graph_name.to_string()))
             .insert(GraphPoints(graph_points))
+            .insert(GraphLabels(graph_labels))
             .insert_bundle(mesh_bundle);
 
         // Recalculate the scales
@@ -495,7 +500,7 @@ fn on_mousemotion(
     mouse_button_input: Res<Input<MouseButton>>,
     mut event_reader: EventReader<MouseMotion>,
     mut cameras: Query<&mut Transform, (With<Camera>, With<SceneCamera>)>,
-    graphs: Query<(&GraphPoints, &GraphName)>,
+    graphs: Query<(&GraphPoints, &GraphLabels, &GraphName)>,
     windows: Res<Windows>,
     mut cursor: Query<(&Cursor, &mut Transform, &mut Text, &mut Visibility), Without<SceneCamera>>,
     axes: Query<&Axes>,
@@ -526,11 +531,11 @@ fn on_mousemotion(
             let (_, mut cursor, mut text, mut visibility) = cursor.get_single_mut().expect("could not get cursor");
             visibility.is_visible = false;
 
-            for (points, _) in graphs.iter() {
+            for (points, labels, name) in graphs.iter() {
                 // TODO: size is asymmetrical
                 let size_x = 10.0 * camera.scale.x;
                 let size_y = 10.0 * camera.scale.y;
-                for (px, py) in points.0.iter() {
+                for (index, (px, py)) in points.0.iter().enumerate() {
                     if x > px - size_x && y > py - size_y && x < px + size_x && y < py + size_y {
                         cursor.scale.x = camera.scale.x;
                         cursor.scale.y = camera.scale.y;
@@ -540,7 +545,8 @@ fn on_mousemotion(
                         // FIXME: hack right now to pad text away from the cursor, perhaps need a
                         // parent child relationship here so we can position text relative to
                         // cursor?
-                        text.sections[0].value = format!("    {}, {}", px, py);
+                        let label = labels.0.get(index).unwrap();
+                        text.sections[0].value = format!("   {} = {}, {}", name.0, label.0, label.1);
                         info!("mouse near point {} {}", px, py);
                         visibility.is_visible = true;
                         
