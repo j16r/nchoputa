@@ -13,6 +13,7 @@ use bevy_egui::{egui, EguiContext, EguiPlugin};
 use chrono::NaiveDate;
 use postcard::from_bytes;
 use serde::{Deserialize, Serialize};
+use shared::response::{Graph, GraphList, Points};
 use tracing::trace;
 
 mod wasm {
@@ -54,17 +55,6 @@ pub fn main() {
     trace!("start up done");
 }
 
-#[derive(Serialize, Deserialize, Debug, Eq, PartialEq)]
-struct GraphList {
-    graphs: HashMap<String, String>,
-}
-
-#[derive(Serialize, Clone, Deserialize, Debug, PartialEq)]
-struct Graph {
-    name: String,
-    points: Vec<(NaiveDate, f32)>,
-}
-
 #[derive(Component)]
 struct GraphName(String);
 
@@ -74,7 +64,7 @@ struct State {
     graph_list: Arc<Mutex<Option<GraphList>>>,
     fetching_graphs: Arc<Mutex<HashMap<String, String>>>,
     graphs: Arc<Mutex<HashMap<String, String>>>,
-    loaded_graphs: Arc<Mutex<HashMap<String, Graph>>>,
+    loaded_graphs: Arc<Mutex<HashMap<String, Points>>>,
     unloaded_graphs: Arc<Mutex<Vec<String>>>,
 }
 
@@ -93,11 +83,12 @@ impl State {
 }
 
 struct EventGraphAdded {
-    graph: Graph,
+    graph_name: String,
+    graph_points: Points,
 }
 
 struct EventGraphRemoved {
-    graph_name: String
+    graph_name: String,
 }
 
 // thoughts:
@@ -119,7 +110,6 @@ fn ui(
             match result {
                 Ok(v) if v.status == 200 => {
                     let list: GraphList = from_bytes(&v.bytes).unwrap();
-                    info!("got response {:?}", list);
                     *graph_list.lock().unwrap() = Some(list);
                 }
                 _ => {}
@@ -162,15 +152,16 @@ fn ui(
                                     move |result: ehttp::Result<ehttp::Response>| match result {
                                         Ok(v) if v.status == 200 => {
                                             let graph: Graph = from_bytes(&v.bytes).unwrap();
-                                            info!("got graph {:?}", graph);
                                             fetchin_graphs.lock().unwrap().remove(&label);
-                                            loaded_graphs.lock().unwrap().insert(label, graph);
+                                            loaded_graphs
+                                                .lock()
+                                                .unwrap()
+                                                .insert(label, graph.points);
                                         }
                                         _ => {}
                                     },
                                 );
                             } else {
-                                info!("Removing graph {}", &label);
                                 graphs.remove(label);
                                 state.unloaded_graphs.lock().unwrap().push(label.clone());
                             }
@@ -181,9 +172,10 @@ fn ui(
     }
 
     let mut loaded_graphs = state.loaded_graphs.lock().unwrap();
-    for (_, graph) in loaded_graphs.iter() {
+    for (name, graph) in loaded_graphs.iter() {
         added_events.send(EventGraphAdded {
-            graph: graph.clone(),
+            graph_name: name.to_string(),
+            graph_points: graph.clone(),
         });
     }
     loaded_graphs.clear();
@@ -210,45 +202,43 @@ fn graph_added_listener(
     mut axes: Query<(&mut Axes, &Handle<Mesh>)>,
 ) {
     for event in events.iter() {
-        let graph = &event.graph;
+        let points = &event.graph_points;
 
         let mut graph_points = Vec::new();
-        for (date, y) in graph.points.iter() {
+        for (date, y) in points.iter() {
             let x = date_scale(date);
             graph_points.push(Vec3::new(x, *y, 0.0));
         }
 
-        commands.spawn().insert_bundle(MaterialMesh2dBundle {
-            mesh: meshes
-                .add(Mesh::from(LineGraph {
-                    points: graph_points,
-                }))
-                .into(),
-            material: materials.add(Color::YELLOW.into()),
-            ..default()
-        })
-        .insert(GraphName(graph.name.clone()));
+        commands
+            .spawn()
+            .insert_bundle(MaterialMesh2dBundle {
+                mesh: meshes
+                    .add(Mesh::from(LineGraph {
+                        points: graph_points,
+                    }))
+                    .into(),
+                material: materials.add(Color::YELLOW.into()),
+                ..default()
+            })
+            .insert(GraphName(event.graph_name.to_string()));
 
         // Recalculate the scales
         let (mut axes, handle) = axes.get_single_mut().unwrap();
-        axes.x.min = graph
-            .points
+        axes.x.min = points
             .iter()
             .map(|(a, _)| date_scale(a))
             .fold(f32::INFINITY, |a, b| a.min(b));
-        axes.x.max = graph
-            .points
+        axes.x.max = points
             .iter()
             .map(|(a, _)| date_scale(a))
             .fold(f32::NEG_INFINITY, |a, b| a.max(b));
 
-        axes.y.min = graph
-            .points
+        axes.y.min = points
             .iter()
             .map(|(_, a)| a)
             .fold(f32::INFINITY, |a, b| a.min(*b));
-        axes.y.max = graph
-            .points
+        axes.y.max = points
             .iter()
             .map(|(_, a)| a)
             .fold(f32::NEG_INFINITY, |a, b| a.max(*b));
@@ -256,20 +246,16 @@ fn graph_added_listener(
         let mut camera = cameras
             .get_single_mut()
             .expect("could not find scene camera");
-        info!("camera = {:?}", camera);
 
         // Reposition the camera to center over the graph
         let camera_x = axes.x.min + (axes.x.max - axes.x.min) / 2.0;
         let camera_y = axes.y.min + (axes.y.max - axes.y.min) / 2.0;
         camera.translation = Vec3::new(camera_x, camera_y, 0.0);
-        info!("after translation, camera = {:?}", camera);
 
         // Scale to fit the whole graph in
         camera.scale.x = (axes.x.max - axes.x.min) / axes.view_size.width;
         camera.scale.y = (axes.y.max - axes.y.min) / axes.view_size.height;
-        info!("after scaling, camera = {:?}", camera);
 
-        info!("new axes: {:?}", axes);
         let mut mesh = meshes.get_mut(handle).unwrap();
         axes.update(&mut mesh);
     }
@@ -283,7 +269,7 @@ fn graph_removed_listener(
     // TODO: this feels inefficient, somehow store the Entity instead?
     for event in events.iter() {
         for graph in graphs.iter() {
-            if graph.1.0 == event.graph_name {
+            if graph.1 .0 == event.graph_name {
                 commands.entity(graph.0).despawn_recursive();
             }
         }

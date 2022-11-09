@@ -11,12 +11,17 @@ actix-web = "*"
 chrono = { version = "*", features = [ "serde" ] }
 csv = "*"
 serde = "*"
+shared = { path = "./shared" }
 tracing = "*"
 tracing-subscriber = "*"
 
 [dependencies.postcard]
 version = "1"
 features = ["alloc"]
+
+[workspace]
+members = ["shared"]
+exclude = ["viewer"]
 
 # FIXME: This does not install the binaries, see:
 # https://github.com/rust-lang/rfcs/blob/master/text/3028-cargo-binary-dependencies.md
