@@ -26,15 +26,16 @@ async fn list_graphs() -> impl Responder {
     };
     graph_list
         .graphs
-        .insert("CSIRO".to_string(), "/api/graphs/csiro".to_string());
+        .insert("CSIRO".to_string(), "/api/graphs/CSIRO".to_string());
     graph_list
         .graphs
-        .insert("UHSLC".to_string(), "/api/graphs/uhslc".to_string());
+        .insert("UHSLC".to_string(), "/api/graphs/UHSLC".to_string());
     to_allocvec(&graph_list).unwrap()
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
-struct Graph {
+struct Graph<'a> {
+    name: &'a str,
     points: Vec<(NaiveDate, f32)>,
 }
 
@@ -48,12 +49,12 @@ struct Row {
 #[get("/api/graphs/{name}")]
 async fn show_graph(name: web::Path<String>) -> Result<impl Responder> {
     match name.as_str() {
-        "csiro" => {
+        "CSIRO" => {
             let mut rdr =
                 csv::ReaderBuilder::new()
                     .delimiter(b'\t')
                     .from_reader(include_str!("../data/sealevel/csiro.tsv").as_bytes());
-            let mut graph = Graph { points: Vec::new() };
+            let mut graph = Graph { name: &name, points: Vec::new() };
             for result in rdr.deserialize() {
                 let record: Row = result
                     .map_err(|e| {
@@ -67,14 +68,13 @@ async fn show_graph(name: web::Path<String>) -> Result<impl Responder> {
                 error!("error encoding dataset {}: {}", name, e);
                 error::ErrorInternalServerError("error encoding dataset")
             })?)
-            // Ok(include_str!("../data/sealevel/csiro.tsv"))
         }
-        "uhslc" => {
+        "UHSLC" => {
             let mut rdr =
                 csv::ReaderBuilder::new()
                     .delimiter(b'\t')
                     .from_reader(include_str!("../data/sealevel/uhslc.tsv").as_bytes());
-            let mut graph = Graph { points: Vec::new() };
+            let mut graph = Graph { name: &name, points: Vec::new() };
             for result in rdr.deserialize() {
                 let record: Row = result
                     .map_err(|e| {

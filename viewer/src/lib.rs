@@ -39,11 +39,13 @@ pub fn main() {
     })
     .insert_resource(State::new())
     .add_event::<EventGraphAdded>()
+    .add_event::<EventGraphRemoved>()
     .add_plugins(DefaultPlugins)
     .add_plugin(EguiPlugin)
     .add_startup_system(setup)
     .add_system(on_resize)
     .add_system(graph_added_listener)
+    .add_system(graph_removed_listener)
     .add_system(ui)
     .add_system(on_mousewheel)
     .add_system(on_mousemotion)
@@ -59,10 +61,12 @@ struct GraphList {
 
 #[derive(Serialize, Clone, Deserialize, Debug, PartialEq)]
 struct Graph {
-    // x: Scale,
-    // y: Scale,
+    name: String,
     points: Vec<(NaiveDate, f32)>,
 }
+
+#[derive(Component)]
+struct GraphName(String);
 
 struct State {
     startup: bool,
@@ -71,6 +75,7 @@ struct State {
     fetching_graphs: Arc<Mutex<HashMap<String, String>>>,
     graphs: Arc<Mutex<HashMap<String, String>>>,
     loaded_graphs: Arc<Mutex<HashMap<String, Graph>>>,
+    unloaded_graphs: Arc<Mutex<Vec<String>>>,
 }
 
 impl State {
@@ -82,6 +87,7 @@ impl State {
             fetching_graphs: default(),
             graphs: default(),
             loaded_graphs: default(),
+            unloaded_graphs: default(),
         }
     }
 }
@@ -90,12 +96,17 @@ struct EventGraphAdded {
     graph: Graph,
 }
 
+struct EventGraphRemoved {
+    graph_name: String
+}
+
 // thoughts:
 // egui is immediate, bevy is not, this is a slight impedance mismatch
 fn ui(
     mut egui_context: ResMut<EguiContext>,
     mut state: ResMut<State>,
-    mut events: EventWriter<EventGraphAdded>,
+    mut added_events: EventWriter<EventGraphAdded>,
+    mut removed_events: EventWriter<EventGraphRemoved>,
 ) {
     if state.startup {
         state.startup = false;
@@ -159,7 +170,9 @@ fn ui(
                                     },
                                 );
                             } else {
+                                info!("Removing graph {}", &label);
                                 graphs.remove(label);
+                                state.unloaded_graphs.lock().unwrap().push(label.clone());
                             }
                         }
                     });
@@ -169,11 +182,19 @@ fn ui(
 
     let mut loaded_graphs = state.loaded_graphs.lock().unwrap();
     for (_, graph) in loaded_graphs.iter() {
-        events.send(EventGraphAdded {
+        added_events.send(EventGraphAdded {
             graph: graph.clone(),
         });
     }
     loaded_graphs.clear();
+
+    let mut unloaded_graphs = state.unloaded_graphs.lock().unwrap();
+    for graph_name in unloaded_graphs.iter() {
+        removed_events.send(EventGraphRemoved {
+            graph_name: graph_name.clone(),
+        });
+    }
+    unloaded_graphs.clear();
 }
 
 fn date_scale(date: &NaiveDate) -> f32 {
@@ -205,7 +226,8 @@ fn graph_added_listener(
                 .into(),
             material: materials.add(Color::YELLOW.into()),
             ..default()
-        });
+        })
+        .insert(GraphName(graph.name.clone()));
 
         // Recalculate the scales
         let (mut axes, handle) = axes.get_single_mut().unwrap();
@@ -248,7 +270,23 @@ fn graph_added_listener(
         info!("after scaling, camera = {:?}", camera);
 
         info!("new axes: {:?}", axes);
-        let _ = meshes.set(handle, Mesh::from(&*axes));
+        let mut mesh = meshes.get_mut(handle).unwrap();
+        axes.update(&mut mesh);
+    }
+}
+
+fn graph_removed_listener(
+    mut events: EventReader<EventGraphRemoved>,
+    mut commands: Commands,
+    graphs: Query<(Entity, &GraphName)>,
+) {
+    // TODO: this feels inefficient, somehow store the Entity instead?
+    for event in events.iter() {
+        for graph in graphs.iter() {
+            if graph.1.0 == event.graph_name {
+                commands.entity(graph.0).despawn_recursive();
+            }
+        }
     }
 }
 
@@ -460,8 +498,6 @@ fn on_resize(
 ) {
     let (mut axes, handle) = axes.get_single_mut().unwrap();
     for e in resize_reader.iter() {
-        info!("resize {:.1} x {:.1}", e.width, e.height);
-
         axes.view_size.width = e.width;
         axes.view_size.height = e.height;
 
