@@ -4,6 +4,7 @@ use std::sync::{Arc, Mutex};
 
 use bevy::prelude::*;
 use bevy::{
+    text::Text2dBounds,
     core_pipeline::clear_color::ClearColorConfig, ecs::event::EventReader,
     input::mouse::MouseButton, input::mouse::MouseMotion, input::mouse::MouseWheel,
     render::mesh::Mesh, render::render_resource::PrimitiveTopology, sprite::MaterialMesh2dBundle,
@@ -57,6 +58,9 @@ pub fn main() {
 
 #[derive(Component)]
 struct GraphName(String);
+
+#[derive(Component)]
+struct GraphPoints(Vec<(f32, f32)>);
 
 struct State {
     startup: bool,
@@ -204,24 +208,28 @@ fn graph_added_listener(
     for event in events.iter() {
         let points = &event.graph_points;
 
+        let mut mesh_points = Vec::new();
         let mut graph_points = Vec::new();
         for (date, y) in points.iter() {
             let x = date_scale(date);
-            graph_points.push(Vec3::new(x, *y, 0.0));
+            graph_points.push((x, *y));
+            mesh_points.push(Vec3::new(x, *y, 0.0));
         }
 
+        let mesh_bundle = MaterialMesh2dBundle {
+            mesh: meshes
+                .add(Mesh::from(LineGraph {
+                    points: mesh_points,
+                }))
+                .into(),
+            material: materials.add(Color::YELLOW.into()),
+            ..default()
+        };
         commands
             .spawn()
-            .insert_bundle(MaterialMesh2dBundle {
-                mesh: meshes
-                    .add(Mesh::from(LineGraph {
-                        points: graph_points,
-                    }))
-                    .into(),
-                material: materials.add(Color::YELLOW.into()),
-                ..default()
-            })
-            .insert(GraphName(event.graph_name.to_string()));
+            .insert(GraphName(event.graph_name.to_string()))
+            .insert(GraphPoints(graph_points))
+            .insert_bundle(mesh_bundle);
 
         // Recalculate the scales
         let (mut axes, handle) = axes.get_single_mut().unwrap();
@@ -282,10 +290,14 @@ struct SceneCamera;
 #[derive(Component)]
 struct OverlayCamera;
 
+#[derive(Component)]
+struct Cursor;
+
 fn setup(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
+    asset_server: Res<AssetServer>,
 ) {
     commands
         .spawn_bundle(Camera2dBundle::default())
@@ -317,6 +329,26 @@ fn setup(
         .insert(axes)
         .insert(mesh_bundle.mesh.0.clone())
         .insert_bundle(mesh_bundle);
+
+    let font = asset_server.load("/s/FiraMono-Medium.ttf");
+    let text_style = TextStyle {
+        font,
+        font_size: 16.0,
+        color: Color::WHITE,
+    };
+    commands
+        .spawn()
+        .insert(Cursor {})
+        .insert_bundle(MaterialMesh2dBundle {
+            mesh: meshes.add(Mesh::from(shape::Quad::new(Vec2::new(32.0, 32.0)))).into(),
+            material: materials.add(ColorMaterial::from(Color::WHITE)),
+            ..default()
+        })
+        .insert_bundle(Text2dBundle{
+            text: Text::from_section("x, y", text_style),
+            ..default()
+        })
+        .insert(Visibility{is_visible: false});
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
@@ -463,6 +495,10 @@ fn on_mousemotion(
     mouse_button_input: Res<Input<MouseButton>>,
     mut event_reader: EventReader<MouseMotion>,
     mut cameras: Query<&mut Transform, (With<Camera>, With<SceneCamera>)>,
+    graphs: Query<(&GraphPoints, &GraphName)>,
+    windows: Res<Windows>,
+    mut cursor: Query<(&Cursor, &mut Transform, &mut Text, &mut Visibility), Without<SceneCamera>>,
+    axes: Query<&Axes>,
 ) {
     for e in event_reader.iter() {
         let mut camera = cameras
@@ -473,6 +509,46 @@ fn on_mousemotion(
             let x = -e.delta.x * camera.scale.x;
             let y = e.delta.y * camera.scale.y;
             camera.translation += Vec3::new(x, y, 0.0);
+        }
+
+        // Is the mouse near a point on a graph?
+        if let Some(position) = windows
+            .get_primary()
+            .expect("could not get the primary window")
+            .cursor_position()
+        {
+            let axes = axes.get_single().expect("no axes");
+
+            // Convert the mouse position to world position
+            let x = (position.x - axes.view_size.width / 2.0) * camera.scale.x + camera.translation.x;
+            let y = (position.y - axes.view_size.height / 2.0) * camera.scale.y + camera.translation.y;
+
+            let (_, mut cursor, mut text, mut visibility) = cursor.get_single_mut().expect("could not get cursor");
+            visibility.is_visible = false;
+
+            for (points, _) in graphs.iter() {
+                // TODO: size is asymmetrical
+                let size_x = 10.0 * camera.scale.x;
+                let size_y = 10.0 * camera.scale.y;
+                for (px, py) in points.0.iter() {
+                    if x > px - size_x && y > py - size_y && x < px + size_x && y < py + size_y {
+                        cursor.scale.x = camera.scale.x;
+                        cursor.scale.y = camera.scale.y;
+                        cursor.translation.x = *px;
+                        cursor.translation.y = *py;
+
+                        // FIXME: hack right now to pad text away from the cursor, perhaps need a
+                        // parent child relationship here so we can position text relative to
+                        // cursor?
+                        text.sections[0].value = format!("    {}, {}", px, py);
+                        info!("mouse near point {} {}", px, py);
+                        visibility.is_visible = true;
+                        
+                        // FIXME: This means we'll show the cursor near the first point, not the closest!
+                        break;
+                    }
+                }
+            }
         }
     }
 }
