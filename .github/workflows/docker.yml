@@ -20,4 +20,4 @@ jobs:
           context: .
           file: ./Dockerfile
           push: true
-          tags: ${{ secrets.DOCKER_HUB_USERNAME }}/clockbox:latest
+          tags: ${{ secrets.DOCKER_HUB_USERNAME }}/nchoputa:latest
