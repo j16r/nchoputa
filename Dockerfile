@@ -15,7 +15,8 @@ FROM debian:buster-slim
 
 WORKDIR /opt
 COPY --from=build /usr/src/nchoputa/target/release/nchoputa .
-COPY static ./static
+COPY static ./static/
+COPY --from=build /usr/src/nchoputa/static/viewer* ./static/
 
 USER 1000
 EXPOSE 8999
