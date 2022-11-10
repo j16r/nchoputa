@@ -15,7 +15,10 @@ endif
 all: static/viewer_bg.wasm static/viewer.js $(binary)
 
 .PHONY: install
-install: /usr/local/cargo/bin/nchoputa
+install: /usr/local/cargo/bin/nchoputa static/viewer_bg.wasm static/viewer.js
+
+static/viewer_bg.wasm.gz: static/viewer_bg.wasm
+	gzip -9 < $< > $@
 
 /usr/local/cargo/bin/nchoputa: $(binary)
 	cp $< $@ 
@@ -23,8 +26,8 @@ install: /usr/local/cargo/bin/nchoputa
 $(binary): Cargo.* src/*.rs
 	cargo build $(cargo_opt)
 
-$(wasm): viewer/Cargo.* viewer/src/*.rs
-	cd "$(<D)" && cargo build $(cargo_opt)
+$(wasm): viewer/Cargo.* viewer/src/*.rs shared/src/*.rs
+	cd $(<D) && cargo build $(cargo_opt)
 
 static/viewer_bg.wasm static/viewer.js: $(wasm)
 	RUST_LOG=warn $(bindgen) --out-dir $(@D) --target web --no-typescript --out-name viewer $<

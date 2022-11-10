@@ -1,2 +1,4 @@
+.git/
 target/
 viewer/target/
+static/viewer*
