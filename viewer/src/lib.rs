@@ -345,7 +345,7 @@ fn setup(
         .spawn()
         .insert(Cursor {})
         .insert_bundle(MaterialMesh2dBundle {
-            mesh: meshes.add(Mesh::from(shape::Quad::new(Vec2::new(32.0, 32.0)))).into(),
+            mesh: meshes.add(new_crosshair_mesh()).into(),
             material: materials.add(ColorMaterial::from(Color::WHITE)),
             ..default()
         })
@@ -354,6 +354,34 @@ fn setup(
             ..default()
         })
         .insert(Visibility{is_visible: false});
+}
+
+fn new_crosshair_mesh() -> Mesh {
+
+    let mut vertices = vec![];
+    let mut normals = vec![];
+    let mut uvs = vec![];
+
+    vertices.push([0.0, -1.0, 0.0]);
+    vertices.push([0.0, 1.0, 0.0]);
+
+    vertices.push([-1.0, 0.0, 0.0]);
+    vertices.push([1.0, 0.0, 0.0]);
+
+    normals.push(Vec3::ZERO.to_array());
+    uvs.push([0.0; 2]);
+    normals.push(Vec3::ZERO.to_array());
+    uvs.push([0.0; 2]);
+    normals.push(Vec3::ZERO.to_array());
+    uvs.push([0.0; 2]);
+    normals.push(Vec3::ZERO.to_array());
+    uvs.push([0.0; 2]);
+
+    let mut mesh = Mesh::new(PrimitiveTopology::LineList);
+    mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, vertices);
+    mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, normals);
+    mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, uvs);
+    mesh
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
