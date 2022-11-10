@@ -4,6 +4,7 @@ use actix_files as fs;
 use actix_web::{
     error, get, http::header, middleware, web, App, HttpResponse, HttpServer, Responder, Result,
 };
+use clap::Parser;
 use chrono::NaiveDate;
 use postcard::to_allocvec;
 use serde::Deserialize;
@@ -85,11 +86,20 @@ async fn show_graph(name: web::Path<String>) -> Result<impl Responder> {
     }
 }
 
+#[derive(Parser, Debug)]
+#[command(author, version, about, long_about = None)]
+struct Args {
+    #[arg(short, long, default_value_t=8999)]
+    port: u16,
+}
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     tracing_subscriber::fmt::init();
 
-    info!("Listening on http://localhost:8999/ ...");
+    let args = Args::parse();
+
+    info!("Listening on http://localhost:{}/ ...", args.port);
     HttpServer::new(|| {
         App::new()
             .wrap(middleware::Logger::default())
@@ -103,7 +113,7 @@ async fn main() -> std::io::Result<()> {
             .service(list_graphs)
             .service(show_graph)
     })
-    .bind("0.0.0.0:8999")?
+    .bind(format!("0.0.0.0:{}", args.port))?
     .run()
     .await
 }

@@ -9,6 +9,7 @@ resolver = "2"
 actix-files = "*"
 actix-web = "*"
 chrono = { version = "*", features = [ "serde" ] }
+clap = { version = "*", features = [ "derive" ] }
 csv = "*"
 serde = "*"
 shared = { path = "./shared" }
