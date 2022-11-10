@@ -14,15 +14,6 @@ endif
 .PHONY: all
 all: static/viewer_bg.wasm static/viewer.js $(binary)
 
-.PHONY: install
-install: /usr/local/cargo/bin/nchoputa static/viewer_bg.wasm static/viewer.js
-
-static/viewer_bg.wasm.gz: static/viewer_bg.wasm
-	gzip -9 < $< > $@
-
-/usr/local/cargo/bin/nchoputa: $(binary)
-	cp $< $@ 
-
 $(binary): Cargo.* src/*.rs
 	cargo build $(cargo_opt)
 
