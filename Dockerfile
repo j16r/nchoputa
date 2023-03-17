@@ -1,4 +1,4 @@
-FROM rust:1.65 AS build
+FROM rust:1.68 AS build
 WORKDIR /usr/src
 
 # Install build dependencies
