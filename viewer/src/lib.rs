@@ -7,9 +7,9 @@ use bevy::{
     core_pipeline::clear_color::ClearColorConfig, ecs::event::EventReader,
     input::mouse::MouseButton, input::mouse::MouseMotion, input::mouse::MouseWheel,
     render::mesh::Mesh, render::render_resource::PrimitiveTopology, sprite::MaterialMesh2dBundle,
-    window::WindowResized,
+    window::{PrimaryWindow, WindowResized},
 };
-use bevy_egui::{egui, EguiContext, EguiPlugin};
+use bevy_egui::{egui, EguiContexts, EguiPlugin};
 use chrono::NaiveDate;
 use postcard::from_bytes;
 use serde::{Deserialize, Serialize};
@@ -33,15 +33,17 @@ pub fn main() {
     trace!("nchoputa viewer starting up...");
 
     let mut app = App::new();
-    app.insert_resource(WindowDescriptor {
-        title: "ncho".to_string(),
-        fit_canvas_to_parent: true,
-        ..Default::default()
-    })
+    app.add_plugins(DefaultPlugins.set(WindowPlugin {
+        primary_window: Some(Window {
+            title: "ncho".to_string(),
+            fit_canvas_to_parent: true,
+            ..default()
+        }),
+        ..default()
+    }))
     .insert_resource(State::new())
     .add_event::<EventGraphAdded>()
     .add_event::<EventGraphRemoved>()
-    .add_plugins(DefaultPlugins)
     .add_plugin(EguiPlugin)
     .add_startup_system(setup)
     .add_system(on_resize)
@@ -64,6 +66,7 @@ struct GraphPoints(Vec<(f32, f32)>);
 #[derive(Component)]
 struct GraphLabels(Vec<(NaiveDate, f32)>);
 
+#[derive(Resource)]
 struct State {
     startup: bool,
     loaded_legend: Arc<AtomicBool>,
@@ -100,7 +103,7 @@ struct EventGraphRemoved {
 // thoughts:
 // egui is immediate, bevy is not, this is a slight impedance mismatch
 fn ui(
-    mut egui_context: ResMut<EguiContext>,
+    mut egui_context: EguiContexts,
     mut state: ResMut<State>,
     mut added_events: EventWriter<EventGraphAdded>,
     mut removed_events: EventWriter<EventGraphRemoved>,
@@ -196,7 +199,7 @@ fn ui(
 }
 
 fn date_scale(date: &NaiveDate) -> f32 {
-    (*date - NaiveDate::from_ymd(0, 1, 1)).num_days() as f32
+    (*date - NaiveDate::from_ymd_opt(0, 1, 1).unwrap()).num_days() as f32
 }
 
 fn graph_added_listener(
@@ -230,11 +233,11 @@ fn graph_added_listener(
             ..default()
         };
         commands
-            .spawn()
+            .spawn_empty()
             .insert(GraphName(event.graph_name.to_string()))
             .insert(GraphPoints(graph_points))
             .insert(GraphLabels(graph_labels))
-            .insert_bundle(mesh_bundle);
+            .insert(mesh_bundle);
 
         // Recalculate the scales
         let (mut axes, handle) = axes.get_single_mut().unwrap();
@@ -305,7 +308,7 @@ fn setup(
     asset_server: Res<AssetServer>,
 ) {
     commands
-        .spawn_bundle(Camera2dBundle::default())
+        .spawn(Camera2dBundle::default())
         .insert(SceneCamera);
 
     let axes = Axes::new();
@@ -317,12 +320,12 @@ fn setup(
 
     // Overlay camera, where axes etc. gets rendered
     commands
-        .spawn_bundle(Camera2dBundle {
+        .spawn(Camera2dBundle {
             camera_2d: Camera2d {
                 clear_color: ClearColorConfig::None,
             },
             camera: Camera {
-                priority: 1,
+                order: 1,
                 ..default()
             },
             ..default()
@@ -330,10 +333,10 @@ fn setup(
         .insert(OverlayCamera);
 
     commands
-        .spawn()
+        .spawn_empty()
         .insert(axes)
         .insert(mesh_bundle.mesh.0.clone())
-        .insert_bundle(mesh_bundle);
+        .insert(mesh_bundle);
 
     let font = asset_server.load("/s/FiraMono-Medium.ttf");
     let text_style = TextStyle {
@@ -342,18 +345,18 @@ fn setup(
         color: Color::WHITE,
     };
     commands
-        .spawn()
+        .spawn_empty()
         .insert(Cursor {})
-        .insert_bundle(MaterialMesh2dBundle {
+        .insert(MaterialMesh2dBundle {
             mesh: meshes.add(new_crosshair_mesh()).into(),
             material: materials.add(ColorMaterial::from(Color::WHITE)),
             ..default()
         })
-        .insert_bundle(Text2dBundle{
+        .insert(Text2dBundle{
             text: Text::from_section("x, y", text_style),
             ..default()
         })
-        .insert(Visibility{is_visible: false});
+        .insert(Visibility::Hidden);
 }
 
 fn new_crosshair_mesh() -> Mesh {
@@ -389,6 +392,12 @@ pub struct Scale {
     pub label: String,
     pub min: f32,
     pub max: f32,
+}
+
+#[derive(Default, Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct Size {
+    pub width: f32,
+    pub height: f32,
 }
 
 #[derive(Debug, Component, Clone)]
@@ -529,7 +538,7 @@ fn on_mousemotion(
     mut event_reader: EventReader<MouseMotion>,
     mut cameras: Query<&mut Transform, (With<Camera>, With<SceneCamera>)>,
     graphs: Query<(&GraphPoints, &GraphLabels, &GraphName)>,
-    windows: Res<Windows>,
+    windows: Query<&Window, With<PrimaryWindow>>,
     mut cursor: Query<(&Cursor, &mut Transform, &mut Text, &mut Visibility), Without<SceneCamera>>,
     axes: Query<&Axes>,
 ) {
@@ -546,7 +555,7 @@ fn on_mousemotion(
 
         // Is the mouse near a point on a graph?
         if let Some(position) = windows
-            .get_primary()
+            .get_single()
             .expect("could not get the primary window")
             .cursor_position()
         {
@@ -557,7 +566,7 @@ fn on_mousemotion(
             let y = (position.y - axes.view_size.height / 2.0) * camera.scale.y + camera.translation.y;
 
             let (_, mut cursor, mut text, mut visibility) = cursor.get_single_mut().expect("could not get cursor");
-            visibility.is_visible = false;
+            *visibility = Visibility::Hidden;
 
             for (points, labels, name) in graphs.iter() {
                 // TODO: size is asymmetrical
@@ -576,7 +585,7 @@ fn on_mousemotion(
                         let label = labels.0.get(index).unwrap();
                         text.sections[0].value = format!("   {} = {}, {}", name.0, label.0, label.1);
                         info!("mouse near point {} {}", px, py);
-                        visibility.is_visible = true;
+                        *visibility = Visibility::Visible;
                         
                         // FIXME: This means we'll show the cursor near the first point, not the closest!
                         break;
