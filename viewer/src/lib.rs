@@ -222,7 +222,7 @@ fn graph_added_listener(
     mut cameras: Query<&mut Transform, (With<Camera>, With<SceneCamera>)>,
     mut axes: Query<(&mut Axes, &Handle<Mesh>)>,
 ) {
-    for event in events.iter() {
+    for event in events.read() {
         let points = &event.graph_points;
 
         let mut mesh_points = Vec::new();
@@ -295,7 +295,7 @@ fn graph_removed_listener(
     graphs: Query<(Entity, &GraphName)>,
 ) {
     // TODO: this feels inefficient, somehow store the Entity instead?
-    for event in events.iter() {
+    for event in events.read() {
         for graph in graphs.iter() {
             if graph.1 .0 == event.graph_name {
                 commands.entity(graph.0).despawn_recursive();
@@ -530,7 +530,7 @@ fn on_mousewheel(
     mut event_reader: EventReader<MouseWheel>,
     mut cameras: Query<&mut Transform, (With<Camera>, With<SceneCamera>)>,
 ) {
-    for e in event_reader.iter() {
+    for e in event_reader.read() {
         let mut camera = cameras
             .get_single_mut()
             .expect("could not find scene camera");
@@ -553,7 +553,7 @@ fn on_mousemotion(
     mut cursor: Query<(&Cursor, &mut Transform, &mut Text, &mut Visibility), Without<SceneCamera>>,
     axes: Query<&Axes>,
 ) {
-    for e in event_reader.iter() {
+    for e in event_reader.read() {
         let mut camera = cameras
             .get_single_mut()
             .expect("could not find scene camera");
@@ -617,7 +617,7 @@ fn on_resize(
     mut meshes: ResMut<Assets<Mesh>>,
 ) {
     let (mut axes, handle) = axes.get_single_mut().unwrap();
-    for e in resize_reader.iter() {
+    for e in resize_reader.read() {
         axes.view_size.width = e.width;
         axes.view_size.height = e.height;
 
