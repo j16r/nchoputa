@@ -23,9 +23,9 @@ web-sys = "*"
 winit = "*"
 
 [dependencies.bevy]
-version = "0.10.0"
-default-features = false
-features = ["bevy_asset", "bevy_core_pipeline", "bevy_winit", "bevy_gltf", "bevy_render", "bevy_sprite", "bevy_text", "bevy_ui", "png"]
+version = "*"
+# default-features = false
+# features = ["bevy_asset", "bevy_core_pipeline", "bevy_winit", "bevy_gltf", "bevy_render", "bevy_sprite", "bevy_text", "bevy_ui", "png"]
 
 [profile.dev]
 opt-level = 1

@@ -4,9 +4,14 @@ use std::sync::{Arc, Mutex};
 
 use bevy::prelude::*;
 use bevy::{
-    core_pipeline::clear_color::ClearColorConfig, ecs::event::EventReader,
-    input::mouse::MouseButton, input::mouse::MouseMotion, input::mouse::MouseWheel,
-    render::mesh::Mesh, render::render_resource::PrimitiveTopology, sprite::MaterialMesh2dBundle,
+    core_pipeline::clear_color::ClearColorConfig,
+    ecs::event::EventReader,
+    input::mouse::MouseButton,
+    input::mouse::MouseMotion,
+    input::mouse::MouseWheel,
+    render::mesh::Mesh,
+    render::render_resource::PrimitiveTopology,
+    sprite::MaterialMesh2dBundle,
     window::{PrimaryWindow, WindowResized},
 };
 use bevy_egui::{egui, EguiContexts, EguiPlugin};
@@ -44,14 +49,19 @@ pub fn main() {
     .insert_resource(State::new())
     .add_event::<EventGraphAdded>()
     .add_event::<EventGraphRemoved>()
-    .add_plugin(EguiPlugin)
-    .add_startup_system(setup)
-    .add_system(on_resize)
-    .add_system(graph_added_listener)
-    .add_system(graph_removed_listener)
-    .add_system(ui)
-    .add_system(on_mousewheel)
-    .add_system(on_mousemotion)
+    .add_plugins(EguiPlugin)
+    .add_systems(Startup, setup)
+    .add_systems(
+        Update,
+        (
+            on_resize,
+            graph_added_listener,
+            graph_removed_listener,
+            ui,
+            on_mousewheel,
+            on_mousemotion,
+        ),
+    )
     .run();
 
     trace!("start up done");
@@ -91,11 +101,13 @@ impl State {
     }
 }
 
+#[derive(Event)]
 struct EventGraphAdded {
     graph_name: String,
     graph_points: Points,
 }
 
+#[derive(Event)]
 struct EventGraphRemoved {
     graph_name: String,
 }
@@ -352,7 +364,7 @@ fn setup(
             material: materials.add(ColorMaterial::from(Color::WHITE)),
             ..default()
         })
-        .insert(Text2dBundle{
+        .insert(Text2dBundle {
             text: Text::from_section("x, y", text_style),
             ..default()
         })
@@ -360,7 +372,6 @@ fn setup(
 }
 
 fn new_crosshair_mesh() -> Mesh {
-
     let mut vertices = vec![];
     let mut normals = vec![];
     let mut uvs = vec![];
@@ -562,10 +573,13 @@ fn on_mousemotion(
             let axes = axes.get_single().expect("no axes");
 
             // Convert the mouse position to world position
-            let x = (position.x - axes.view_size.width / 2.0) * camera.scale.x + camera.translation.x;
-            let y = (position.y - axes.view_size.height / 2.0) * camera.scale.y + camera.translation.y;
+            let x =
+                (position.x - axes.view_size.width / 2.0) * camera.scale.x + camera.translation.x;
+            let y =
+                (position.y - axes.view_size.height / 2.0) * camera.scale.y + camera.translation.y;
 
-            let (_, mut cursor, mut text, mut visibility) = cursor.get_single_mut().expect("could not get cursor");
+            let (_, mut cursor, mut text, mut visibility) =
+                cursor.get_single_mut().expect("could not get cursor");
             *visibility = Visibility::Hidden;
 
             for (points, labels, name) in graphs.iter() {
@@ -583,10 +597,11 @@ fn on_mousemotion(
                         // parent child relationship here so we can position text relative to
                         // cursor?
                         let label = labels.0.get(index).unwrap();
-                        text.sections[0].value = format!("   {} = {}, {}", name.0, label.0, label.1);
+                        text.sections[0].value =
+                            format!("   {} = {}, {}", name.0, label.0, label.1);
                         info!("mouse near point {} {}", px, py);
                         *visibility = Visibility::Visible;
-                        
+
                         // FIXME: This means we'll show the cursor near the first point, not the closest!
                         break;
                     }

@@ -4,8 +4,8 @@ use actix_files as fs;
 use actix_web::{
     error, get, http::header, middleware, web, App, HttpResponse, HttpServer, Responder, Result,
 };
-use clap::Parser;
 use chrono::NaiveDate;
+use clap::Parser;
 use postcard::to_allocvec;
 use serde::Deserialize;
 use shared::response::{Graph, GraphList};
@@ -89,7 +89,7 @@ async fn show_graph(name: web::Path<String>) -> Result<impl Responder> {
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Args {
-    #[arg(short, long, default_value_t=8999)]
+    #[arg(short, long, default_value_t = 8999)]
     port: u16,
 }
 
