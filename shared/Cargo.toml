@@ -2,7 +2,8 @@
 name = "shared"
 version = "0.1.0"
 edition = "2021"
+resolver = "2"
 
 [dependencies]
 chrono = { version = "*", features = [ "serde" ] }
-serde = "*"
+serde = { version = "*", features = [ "derive" ] }
