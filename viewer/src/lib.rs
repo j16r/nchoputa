@@ -4,13 +4,15 @@ use std::sync::{Arc, Mutex};
 
 use bevy::prelude::*;
 use bevy::{
-    core_pipeline::clear_color::ClearColorConfig,
+    asset::AssetMetaCheck,
     ecs::event::EventReader,
     input::mouse::MouseButton,
     input::mouse::MouseMotion,
     input::mouse::MouseWheel,
     render::mesh::Mesh,
     render::render_resource::PrimitiveTopology,
+    render::render_asset::RenderAssetUsages,
+    render::camera::ClearColorConfig,
     sprite::MaterialMesh2dBundle,
     window::{PrimaryWindow, WindowResized},
 };
@@ -29,6 +31,7 @@ mod wasm {
     #[wasm_bindgen(start)]
     pub fn run() {
         console_error_panic_hook::set_once();
+        // tracing_wasm::set_as_global_default();
 
         super::main();
     }
@@ -38,31 +41,32 @@ pub fn main() {
     trace!("nchoputa viewer starting up...");
 
     let mut app = App::new();
-    app.add_plugins(DefaultPlugins.set(WindowPlugin {
-        primary_window: Some(Window {
-            title: "ncho".to_string(),
-            fit_canvas_to_parent: true,
+    app
+        .insert_resource(AssetMetaCheck::Never)
+        .add_plugins(DefaultPlugins.set(WindowPlugin {
+            primary_window: Some(Window {
+                title: "ncho".to_string(),
+                ..default()
+            }),
             ..default()
-        }),
-        ..default()
-    }))
-    .insert_resource(State::new())
-    .add_event::<EventGraphAdded>()
-    .add_event::<EventGraphRemoved>()
-    .add_plugins(EguiPlugin)
-    .add_systems(Startup, setup)
-    .add_systems(
-        Update,
-        (
-            on_resize,
-            graph_added_listener,
-            graph_removed_listener,
-            ui,
-            on_mousewheel,
-            on_mousemotion,
-        ),
-    )
-    .run();
+        }))
+        .insert_resource(State::new())
+        .add_event::<EventGraphAdded>()
+        .add_event::<EventGraphRemoved>()
+        .add_plugins(EguiPlugin)
+        .add_systems(Startup, setup)
+        .add_systems(
+            Update,
+            (
+                on_resize,
+                graph_added_listener,
+                graph_removed_listener,
+                ui,
+                on_mousewheel,
+                on_mousemotion,
+            ),
+        )
+        .run();
 
     trace!("start up done");
 }
@@ -241,7 +245,7 @@ fn graph_added_listener(
                     points: mesh_points,
                 }))
                 .into(),
-            material: materials.add(Color::YELLOW.into()),
+            material: materials.add(Color::YELLOW),
             ..default()
         };
         commands
@@ -284,8 +288,8 @@ fn graph_added_listener(
         camera.scale.x = (axes.x.max - axes.x.min) / axes.view_size.width;
         camera.scale.y = (axes.y.max - axes.y.min) / axes.view_size.height;
 
-        let mut mesh = meshes.get_mut(handle).unwrap();
-        axes.update(&mut mesh);
+        let mesh = meshes.get_mut(handle).unwrap();
+        axes.update(mesh);
     }
 }
 
@@ -326,17 +330,16 @@ fn setup(
     let axes = Axes::new();
     let mesh_bundle = MaterialMesh2dBundle {
         mesh: meshes.add(Mesh::from(&axes)).into(),
-        material: materials.add(Color::BLACK.into()),
+        material: materials.add(Color::BLACK),
         ..default()
     };
 
     // Overlay camera, where axes etc. gets rendered
     commands
         .spawn(Camera2dBundle {
-            camera_2d: Camera2d {
-                clear_color: ClearColorConfig::None,
-            },
+            camera_2d: Camera2d,
             camera: Camera {
+                clear_color: ClearColorConfig::None,
                 order: 1,
                 ..default()
             },
@@ -351,6 +354,8 @@ fn setup(
         .insert(mesh_bundle);
 
     let font = asset_server.load("/s/FiraMono-Medium.ttf");
+    // Bevy does not support woff2 see https://github.com/bevyengine/bevy/issues/12194
+    // let font = asset_server.load("/s/FiraMono-Medium.woff2");
     let text_style = TextStyle {
         font,
         font_size: 16.0,
@@ -391,7 +396,7 @@ fn new_crosshair_mesh() -> Mesh {
     normals.push(Vec3::ZERO.to_array());
     uvs.push([0.0; 2]);
 
-    let mut mesh = Mesh::new(PrimitiveTopology::LineList);
+    let mut mesh = Mesh::new(PrimitiveTopology::LineList, RenderAssetUsages::default());
     mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, vertices);
     mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, normals);
     mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, uvs);
@@ -458,7 +463,7 @@ impl From<&Axes> for Mesh {
 
         // This tells wgpu that the positions are a list of points
         // where a line will be drawn between each consecutive point
-        let mut mesh = Mesh::new(PrimitiveTopology::LineStrip);
+        let mut mesh = Mesh::new(PrimitiveTopology::LineStrip, RenderAssetUsages::default());
 
         mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, vertices);
 
@@ -514,7 +519,7 @@ impl From<LineGraph> for Mesh {
 
         // This tells wgpu that the positions are a list of points
         // where a line will be drawn between each consecutive point
-        let mut mesh = Mesh::new(PrimitiveTopology::LineStrip);
+        let mut mesh = Mesh::new(PrimitiveTopology::LineStrip, RenderAssetUsages::default());
 
         mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, vertices);
 
@@ -545,7 +550,7 @@ fn on_mousewheel(
 }
 
 fn on_mousemotion(
-    mouse_button_input: Res<Input<MouseButton>>,
+    mouse_button_input: Res<ButtonInput<MouseButton>>,
     mut event_reader: EventReader<MouseMotion>,
     mut cameras: Query<&mut Transform, (With<Camera>, With<SceneCamera>)>,
     graphs: Query<(&GraphPoints, &GraphLabels, &GraphName)>,
@@ -621,7 +626,7 @@ fn on_resize(
         axes.view_size.width = e.width;
         axes.view_size.height = e.height;
 
-        let mut mesh = meshes.get_mut(handle).unwrap();
-        axes.update(&mut mesh);
+        let mesh = meshes.get_mut(handle).unwrap();
+        axes.update(mesh);
     }
 }

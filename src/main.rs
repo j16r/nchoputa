@@ -113,6 +113,7 @@ async fn main() -> std::io::Result<()> {
             .service(list_graphs)
             .service(show_graph)
     })
+    .workers(1)
     .bind(format!("0.0.0.0:{}", args.port))?
     .run()
     .await
