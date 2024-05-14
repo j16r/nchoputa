@@ -9,23 +9,27 @@ resolver = "2"
 crate-type = ["cdylib"]
 
 [dependencies]
-bevy_egui = { version = "*", default-features = false }
 chrono = { version = "*", features = [ "serde" ] }
 console_error_panic_hook = "*"
 ehttp = "0.2.0"
 postcard = "1"
-shared = { path = "../shared" }
 serde = "*"
+shared = { path = "../shared" }
 tracing = "*"
+tracing-subscriber = "*"
 tracing-wasm = "*"
+tracing-web = "*"
 wasm-bindgen = "*"
 web-sys = "*"
 winit = "*"
 
+[dependencies.bevy_egui]
+version = "0.27"
+default-features = false
+features = ["render", "default_fonts"]
+
 [dependencies.bevy]
 version = "0.13"
-# default-features = false
-# features = ["bevy_asset", "bevy_core_pipeline", "bevy_winit", "bevy_gltf", "bevy_render", "bevy_sprite", "bevy_text", "bevy_ui", "png"]
 
 [profile.dev]
 opt-level = 1

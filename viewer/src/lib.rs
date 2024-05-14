@@ -14,31 +14,51 @@ use bevy::{
     render::render_asset::RenderAssetUsages,
     render::camera::ClearColorConfig,
     sprite::MaterialMesh2dBundle,
-    window::{PrimaryWindow, WindowResized},
+    window::{PrimaryWindow, WindowResized, PresentMode},
+    log::LogPlugin,
 };
 use bevy_egui::{egui, EguiContexts, EguiPlugin};
 use chrono::NaiveDate;
 use postcard::from_bytes;
 use serde::{Deserialize, Serialize};
 use shared::response::{Graph, GraphList, Points};
-use tracing::trace;
 
 mod wasm {
 
+    use tracing_subscriber::{EnvFilter, fmt::format::Pretty, filter::LevelFilter, prelude::*};
+    use tracing_web::{MakeWebConsoleWriter, performance_layer};
     use wasm_bindgen::prelude::*;
 
     #[allow(non_snake_case)]
     #[wasm_bindgen(start)]
     pub fn run() {
         console_error_panic_hook::set_once();
-        // tracing_wasm::set_as_global_default();
+
+        let fmt_layer = tracing_subscriber::fmt::layer()
+            .with_level(false)
+            .with_ansi(false)
+            .without_time()
+            .with_writer(MakeWebConsoleWriter::new().with_pretty_level());
+        let perf_layer = performance_layer()
+            .with_details_from_fields(Pretty::default());
+
+        tracing_subscriber::registry()
+            .with(
+                EnvFilter::builder()
+                    .with_default_directive(LevelFilter::WARN.into())
+                    .parse("viewer=trace")
+                    .unwrap()
+            )
+            .with(fmt_layer)
+            .with(perf_layer)
+            .init();
 
         super::main();
     }
 }
 
 pub fn main() {
-    trace!("nchoputa viewer starting up...");
+    tracing::info!("starting up...");
 
     let mut app = App::new();
     app
@@ -46,13 +66,19 @@ pub fn main() {
         .add_plugins(DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
                 title: "ncho".to_string(),
+                present_mode: PresentMode::AutoVsync,
                 ..default()
             }),
             ..default()
-        }))
+        }).disable::<LogPlugin>())
+        // XXX: Doesn't do any filtering?
+        // }).set(LogPlugin{
+        //     level: Level::ERROR,
+        //     // filter: "wgpu=error,bevy_render=info,bevy_ecs=warn,nchoputa=trace".to_string(),
+        //     filter: "nchoputa=trace".to_string(),
+        //     update_subscriber: None,
+        // }))
         .insert_resource(State::new())
-        .add_event::<EventGraphAdded>()
-        .add_event::<EventGraphRemoved>()
         .add_plugins(EguiPlugin)
         .add_systems(Startup, setup)
         .add_systems(
@@ -66,9 +92,11 @@ pub fn main() {
                 on_mousemotion,
             ),
         )
+        .add_event::<EventGraphAdded>()
+        .add_event::<EventGraphRemoved>()
         .run();
 
-    trace!("start up done");
+    tracing::info!("start up complete");
 }
 
 #[derive(Component)]
@@ -125,6 +153,7 @@ fn ui(
     mut removed_events: EventWriter<EventGraphRemoved>,
 ) {
     if state.startup {
+        tracing::trace!("performing ui startup");
         state.startup = false;
 
         let graph_list = state.graph_list.clone();
@@ -135,22 +164,30 @@ fn ui(
             match result {
                 Ok(v) if v.status == 200 => {
                     let list: GraphList = from_bytes(&v.bytes).unwrap();
+                    tracing::info!("server responded with legend = {:?}", &list);
                     *graph_list.lock().unwrap() = Some(list);
                 }
-                _ => {}
+                _ => {
+                    tracing::warn!("error loading legend");
+                }
             }
+            tracing::trace!("setting loaded_legend = true");
             legend_bool.store(true, Ordering::SeqCst);
         });
     }
 
     if state.loaded_legend.load(Ordering::SeqCst) {
+        tracing::trace!("loaded_legend is true");
+
         let graph_list = state.graph_list.clone();
         let fetching_graphs = state.fetching_graphs.clone();
         let graphs = state.graphs.clone();
 
         egui::Window::new("Datasets")
+            .enabled(true)
             .vscroll(true)
             .resizable(false)
+            .auto_sized()
             .anchor(egui::Align2::RIGHT_TOP, [-100.0, 100.0])
             .show(egui_context.ctx_mut(), |ui| {
                 let graph_list = graph_list.lock().unwrap();
@@ -161,6 +198,7 @@ fn ui(
 
                     let mut fetching = fetching_graphs.lock().unwrap();
                     let enabled = fetching.get(label).is_none();
+                    // tracing::trace!("rendering item {}", label);
                     ui.add_enabled_ui(enabled, |ui| {
                         if ui.checkbox(&mut present, label).clicked() {
                             if present {
@@ -604,7 +642,7 @@ fn on_mousemotion(
                         let label = labels.0.get(index).unwrap();
                         text.sections[0].value =
                             format!("   {} = {}, {}", name.0, label.0, label.1);
-                        info!("mouse near point {} {}", px, py);
+                        tracing::trace!("mouse near point {} {}", px, py);
                         *visibility = Visibility::Visible;
 
                         // FIXME: This means we'll show the cursor near the first point, not the closest!
