@@ -27,6 +27,9 @@ async fn list_graphs() -> impl Responder {
     graph_list
         .graphs
         .insert("UHSLC".to_string(), "/api/graphs/UHSLC".to_string());
+    graph_list
+        .graphs
+        .insert("Dev".to_string(), "/api/graphs/Dev".to_string());
     to_allocvec(&graph_list).unwrap()
 }
 
@@ -77,6 +80,25 @@ async fn show_graph(name: web::Path<String>) -> Result<impl Responder> {
                 debug!("record: {:?}", record);
                 graph.points.push((record.Date, record.Value));
             }
+            Ok(to_allocvec(&graph).map_err(|e| {
+                error!("error encoding dataset {}: {}", name, e);
+                error::ErrorInternalServerError("error encoding dataset")
+            })?)
+        }
+        "Dev" => {
+            let mut graph = Graph {
+                name: &name,
+                points: Vec::new(),
+            };
+            graph
+                .points
+                .push((NaiveDate::from_ymd_opt(0, 1, 1).unwrap(), 0.0f32));
+            graph
+                .points
+                .push((NaiveDate::from_ymd_opt(0, 1, 2).unwrap(), 1.0f32));
+            graph
+                .points
+                .push((NaiveDate::from_ymd_opt(0, 1, 3).unwrap(), 2.0f32));
             Ok(to_allocvec(&graph).map_err(|e| {
                 error!("error encoding dataset {}: {}", name, e);
                 error::ErrorInternalServerError("error encoding dataset")

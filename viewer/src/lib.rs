@@ -15,6 +15,7 @@ use bevy::{
     render::camera::ClearColorConfig,
     sprite::MaterialMesh2dBundle,
     window::{PrimaryWindow, WindowResized, PresentMode},
+    render::view::visibility::RenderLayers,
     log::LogPlugin,
 };
 use bevy_egui::{egui, EguiContexts, EguiPlugin};
@@ -171,14 +172,11 @@ fn ui(
                     tracing::warn!("error loading legend");
                 }
             }
-            tracing::trace!("setting loaded_legend = true");
             legend_bool.store(true, Ordering::SeqCst);
         });
     }
 
     if state.loaded_legend.load(Ordering::SeqCst) {
-        tracing::trace!("loaded_legend is true");
-
         let graph_list = state.graph_list.clone();
         let fetching_graphs = state.fetching_graphs.clone();
         let graphs = state.graphs.clone();
@@ -261,7 +259,7 @@ fn graph_added_listener(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
-    mut cameras: Query<&mut Transform, (With<Camera>, With<SceneCamera>)>,
+    mut cameras: Query<&mut Transform, With<SceneCamera>>,
     mut axes: Query<(&mut Axes, &Handle<Mesh>)>,
 ) {
     for event in events.read() {
@@ -287,11 +285,13 @@ fn graph_added_listener(
             ..default()
         };
         commands
-            .spawn_empty()
+            .spawn((
+                mesh_bundle,
+                RenderLayers::layer(0),
+            ))
             .insert(GraphName(event.graph_name.to_string()))
             .insert(GraphPoints(graph_points))
-            .insert(GraphLabels(graph_labels))
-            .insert(mesh_bundle);
+            .insert(GraphLabels(graph_labels));
 
         // Recalculate the scales
         let (mut axes, handle) = axes.get_single_mut().unwrap();
@@ -353,7 +353,7 @@ struct SceneCamera;
 struct OverlayCamera;
 
 #[derive(Component)]
-struct Cursor;
+struct Crosshair;
 
 fn setup(
     mut commands: Commands,
@@ -362,8 +362,27 @@ fn setup(
     asset_server: Res<AssetServer>,
 ) {
     commands
-        .spawn(Camera2dBundle::default())
+        .spawn((
+            Camera2dBundle::default(),
+            RenderLayers::from_layers(&[0])
+        ))
         .insert(SceneCamera);
+
+    // Overlay camera, where axes etc. gets rendered
+    commands
+        .spawn((
+            Camera2dBundle {
+                camera_2d: Camera2d,
+                camera: Camera {
+                    clear_color: ClearColorConfig::None,
+                    order: 1,
+                    ..default()
+                },
+                ..default()
+            },
+            RenderLayers::from_layers(&[1])
+        ))
+        .insert(OverlayCamera);
 
     let axes = Axes::new();
     let mesh_bundle = MaterialMesh2dBundle {
@@ -371,25 +390,13 @@ fn setup(
         material: materials.add(Color::BLACK),
         ..default()
     };
-
-    // Overlay camera, where axes etc. gets rendered
     commands
-        .spawn(Camera2dBundle {
-            camera_2d: Camera2d,
-            camera: Camera {
-                clear_color: ClearColorConfig::None,
-                order: 1,
-                ..default()
-            },
-            ..default()
-        })
-        .insert(OverlayCamera);
-
-    commands
-        .spawn_empty()
+        .spawn((
+            mesh_bundle.clone(),
+            RenderLayers::layer(1),
+        ))
         .insert(axes)
-        .insert(mesh_bundle.mesh.0.clone())
-        .insert(mesh_bundle);
+        .insert(mesh_bundle.mesh.0.clone());
 
     let font = asset_server.load("/s/FiraMono-Medium.ttf");
     // Bevy does not support woff2 see https://github.com/bevyengine/bevy/issues/12194
@@ -400,13 +407,15 @@ fn setup(
         color: Color::WHITE,
     };
     commands
-        .spawn_empty()
-        .insert(Cursor {})
-        .insert(MaterialMesh2dBundle {
-            mesh: meshes.add(new_crosshair_mesh()).into(),
-            material: materials.add(ColorMaterial::from(Color::WHITE)),
-            ..default()
-        })
+        .spawn((
+            MaterialMesh2dBundle {
+                mesh: meshes.add(new_crosshair_mesh()).into(),
+                material: materials.add(ColorMaterial::from(Color::WHITE)),
+                ..default()
+            },
+            RenderLayers::layer(1),
+        ))
+        .insert(Crosshair {})
         .insert(Text2dBundle {
             text: Text::from_section("x, y", text_style),
             ..default()
@@ -419,11 +428,11 @@ fn new_crosshair_mesh() -> Mesh {
     let mut normals = vec![];
     let mut uvs = vec![];
 
-    vertices.push([0.0, -1.0, 0.0]);
-    vertices.push([0.0, 1.0, 0.0]);
+    vertices.push([0.0, -10.0, 0.0]);
+    vertices.push([0.0, 10.0, 0.0]);
 
-    vertices.push([-1.0, 0.0, 0.0]);
-    vertices.push([1.0, 0.0, 0.0]);
+    vertices.push([-10.0, 0.0, 0.0]);
+    vertices.push([10.0, 0.0, 0.0]);
 
     normals.push(Vec3::ZERO.to_array());
     uvs.push([0.0; 2]);
@@ -571,17 +580,18 @@ impl From<LineGraph> for Mesh {
 
 fn on_mousewheel(
     mut event_reader: EventReader<MouseWheel>,
-    mut cameras: Query<&mut Transform, (With<Camera>, With<SceneCamera>)>,
+    mut cameras: Query<&mut Transform, With<SceneCamera>>,
 ) {
+    let scale = 100.0;
     for e in event_reader.read() {
         let mut camera = cameras
             .get_single_mut()
             .expect("could not find scene camera");
 
         let factor = if e.y >= 0.0 {
-            e.y / 10.0
+            e.y / scale
         } else {
-            1.0 / (f32::abs(e.y) / 10.0)
+            1.0 / (f32::abs(e.y) / scale)
         };
         camera.scale *= Vec3::new(factor, factor, 1.0);
     }
@@ -590,68 +600,72 @@ fn on_mousewheel(
 fn on_mousemotion(
     mouse_button_input: Res<ButtonInput<MouseButton>>,
     mut event_reader: EventReader<MouseMotion>,
-    mut cameras: Query<&mut Transform, (With<Camera>, With<SceneCamera>)>,
+    cameras: Query<(&Camera, &GlobalTransform), With<SceneCamera>>,
     graphs: Query<(&GraphPoints, &GraphLabels, &GraphName)>,
     windows: Query<&Window, With<PrimaryWindow>>,
-    mut cursor: Query<(&Cursor, &mut Transform, &mut Text, &mut Visibility), Without<SceneCamera>>,
-    axes: Query<&Axes>,
+    mut cursor: Query<(&Crosshair, &mut Transform, &mut Text, &mut Visibility), Without<SceneCamera>>,
+    // axes: Query<&Axes>,
 ) {
+    let window = windows
+        .get_single()
+        .expect("could not get the primary window");
+
     for e in event_reader.read() {
-        let mut camera = cameras
-            .get_single_mut()
-            .expect("could not find scene camera");
+        let (camera, camera_transform) = cameras.single();
 
         if mouse_button_input.pressed(MouseButton::Middle) {
-            let x = -e.delta.x * camera.scale.x;
-            let y = e.delta.y * camera.scale.y;
-            camera.translation += Vec3::new(x, y, 0.0);
+            tracing::trace!("mouse moved {}, {}", e.delta.x, e.delta.y);
+
+        //     let x = -e.delta.x * camera.scale.x;
+        //     let y = e.delta.y * camera.scale.y;
+        //     camera_transform.translation += Vec3::new(x, y, 0.0);
         }
 
-        // Is the mouse near a point on a graph?
-        if let Some(position) = windows
-            .get_single()
-            .expect("could not get the primary window")
-            .cursor_position()
-        {
-            let axes = axes.get_single().expect("no axes");
+        if let Some(scene_position) = window.cursor_position()
+            .and_then(|c| camera.viewport_to_world(camera_transform, c))
+            .map(|ray| ray.origin.truncate()) {
 
-            // Convert the mouse position to world position
-            let x =
-                (position.x - axes.view_size.width / 2.0) * camera.scale.x + camera.translation.x;
-            let y =
-                (position.y - axes.view_size.height / 2.0) * camera.scale.y + camera.translation.y;
-
-            let (_, mut cursor, mut text, mut visibility) =
-                cursor.get_single_mut().expect("could not get cursor");
+            let (_, mut crosshair, mut text, mut visibility) =
+                cursor.get_single_mut().expect("could not get crosshair");
             *visibility = Visibility::Hidden;
 
             for (points, labels, name) in graphs.iter() {
-                // TODO: size is asymmetrical
-                let size_x = 10.0 * camera.scale.x;
-                let size_y = 10.0 * camera.scale.y;
-                for (index, (px, py)) in points.0.iter().enumerate() {
-                    if x > px - size_x && y > py - size_y && x < px + size_x && y < py + size_y {
-                        cursor.scale.x = camera.scale.x;
-                        cursor.scale.y = camera.scale.y;
-                        cursor.translation.x = *px;
-                        cursor.translation.y = *py;
+                // Is the mouse near a point on this graph?
+                if let Some((index, Vec2{x: px, y: py})) = find_closest_point(scene_position, points.0.iter()) {
+                    if let Some(highlighted_position) = camera.world_to_viewport(camera_transform, Vec3{x: px, y: py, z: 0.0}) {
+                        crosshair.translation.x = highlighted_position.x - window.width() / 2.0;
+                        crosshair.translation.y = window.height() / 2.0 - highlighted_position.y;
 
-                        // FIXME: hack right now to pad text away from the cursor, perhaps need a
+                        tracing::trace!("placing crosshair at {}, {}", highlighted_position.x, highlighted_position.y);
+
+                        // FIXME: hack right now to pad text away from the crosshair, perhaps need a
                         // parent child relationship here so we can position text relative to
                         // cursor?
                         let label = labels.0.get(index).unwrap();
-                        text.sections[0].value =
-                            format!("   {} = {}, {}", name.0, label.0, label.1);
-                        tracing::trace!("mouse near point {} {}", px, py);
+                        text.sections[0].value = format!("{} = {}, {}", name.0, label.0, label.1);
                         *visibility = Visibility::Visible;
 
-                        // FIXME: This means we'll show the cursor near the first point, not the closest!
-                        break;
+                        // FIXME: no!
+                        return;
                     }
                 }
             }
         }
     }
+}
+
+fn find_closest_point<'a>(to: Vec2, points: impl Iterator<Item = &'a (f32, f32)>) -> Option<(usize, Vec2)> {
+    let mut smallest_distance = f32::MAX;
+    let mut item: Option<(usize, Vec2)> = None;
+    for (index, (x, y)) in points.enumerate() {
+        let actual_distance = f32::sqrt(f32::powi(to.x - x, 2) + f32::powi(to.y - y, 2));
+        if actual_distance < smallest_distance {
+            smallest_distance = actual_distance;
+            item = Some((index, Vec2{x: *x, y: *y}));
+        }
+    }
+
+    item
 }
 
 fn on_resize(
