@@ -40,6 +40,11 @@ struct Row {
     Value: f32,
 }
 
+
+//
+// EAFDCF
+// 8E8358
+//
 #[get("/api/graphs/{name}")]
 async fn show_graph(name: web::Path<String>) -> Result<impl Responder> {
     match name.as_str() {
@@ -48,8 +53,9 @@ async fn show_graph(name: web::Path<String>) -> Result<impl Responder> {
                 .delimiter(b'\t')
                 .from_reader(include_str!("../data/sealevel/csiro.tsv").as_bytes());
             let mut graph = Graph {
-                name: &name,
+                name: name.to_string(),
                 points: Vec::new(),
+                color: (0xB1, 0xF8, 0xF2),
             };
             for result in rdr.deserialize() {
                 let record: Row = result.map_err(|e| {
@@ -69,8 +75,9 @@ async fn show_graph(name: web::Path<String>) -> Result<impl Responder> {
                 .delimiter(b'\t')
                 .from_reader(include_str!("../data/sealevel/uhslc.tsv").as_bytes());
             let mut graph = Graph {
-                name: &name,
+                name: name.to_string(),
                 points: Vec::new(),
+                color: (0xBC, 0xD3, 0x9C),
             };
             for result in rdr.deserialize() {
                 let record: Row = result.map_err(|e| {
@@ -87,8 +94,9 @@ async fn show_graph(name: web::Path<String>) -> Result<impl Responder> {
         }
         "Dev" => {
             let mut graph = Graph {
-                name: &name,
+                name: name.to_string(),
                 points: Vec::new(),
+                color: (0xFF, 0xFC, 0x99),
             };
             graph
                 .points

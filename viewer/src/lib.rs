@@ -22,7 +22,7 @@ use bevy_egui::{egui, EguiContexts, EguiPlugin};
 use chrono::NaiveDate;
 use postcard::from_bytes;
 use serde::{Deserialize, Serialize};
-use shared::response::{Graph, GraphList, Points};
+use shared::response::{Graph, GraphList};
 
 mod wasm {
 
@@ -116,7 +116,7 @@ struct State {
     graph_list: Arc<Mutex<Option<GraphList>>>,
     fetching_graphs: Arc<Mutex<HashMap<String, String>>>,
     graphs: Arc<Mutex<HashMap<String, String>>>,
-    loaded_graphs: Arc<Mutex<HashMap<String, Points>>>,
+    loaded_graphs: Arc<Mutex<HashMap<String, Graph>>>,
     unloaded_graphs: Arc<Mutex<Vec<String>>>,
 }
 
@@ -137,7 +137,7 @@ impl State {
 #[derive(Event)]
 struct EventGraphAdded {
     graph_name: String,
-    graph_points: Points,
+    graph: Graph,
 }
 
 #[derive(Event)]
@@ -185,6 +185,7 @@ fn ui(
             .enabled(true)
             .vscroll(true)
             .resizable(false)
+            .movable(true)
             .auto_sized()
             .anchor(egui::Align2::RIGHT_TOP, [-100.0, 100.0])
             .show(egui_context.ctx_mut(), |ui| {
@@ -217,7 +218,7 @@ fn ui(
                                             loaded_graphs
                                                 .lock()
                                                 .unwrap()
-                                                .insert(label, graph.points);
+                                                .insert(label, graph);
                                         }
                                         _ => {}
                                     },
@@ -236,7 +237,7 @@ fn ui(
     for (name, graph) in loaded_graphs.iter() {
         added_events.send(EventGraphAdded {
             graph_name: name.to_string(),
-            graph_points: graph.clone(),
+            graph: graph.clone(),
         });
     }
     loaded_graphs.clear();
@@ -263,7 +264,7 @@ fn graph_added_listener(
     mut axes: Query<(&mut Axes, &Handle<Mesh>)>,
 ) {
     for event in events.read() {
-        let points = &event.graph_points;
+        let points = &event.graph.points;
 
         let mut mesh_points = Vec::new();
         let mut graph_points = Vec::new();
@@ -281,7 +282,7 @@ fn graph_added_listener(
                     points: mesh_points,
                 }))
                 .into(),
-            material: materials.add(Color::YELLOW),
+            material: materials.add(Color::rgb_u8(event.graph.color.0, event.graph.color.1, event.graph.color.2)),
             ..default()
         };
         commands
@@ -387,7 +388,7 @@ fn setup(
     let axes = Axes::new();
     let mesh_bundle = MaterialMesh2dBundle {
         mesh: meshes.add(Mesh::from(&axes)).into(),
-        material: materials.add(Color::BLACK),
+        material: materials.add(Color::SILVER),
         ..default()
     };
     commands
@@ -418,6 +419,7 @@ fn setup(
         .insert(Crosshair {})
         .insert(Text2dBundle {
             text: Text::from_section("x, y", text_style),
+            transform: Transform{translation: Vec3{x: 70.0, y: 8.0, z: 1.0}, ..default()},
             ..default()
         })
         .insert(Visibility::Hidden);
@@ -604,7 +606,6 @@ fn on_mousemotion(
     graphs: Query<(&GraphPoints, &GraphLabels, &GraphName)>,
     windows: Query<&Window, With<PrimaryWindow>>,
     mut cursor: Query<(&Crosshair, &mut Transform, &mut Text, &mut Visibility), Without<SceneCamera>>,
-    // axes: Query<&Axes>,
 ) {
     let window = windows
         .get_single()
@@ -636,13 +637,11 @@ fn on_mousemotion(
                         crosshair.translation.x = highlighted_position.x - window.width() / 2.0;
                         crosshair.translation.y = window.height() / 2.0 - highlighted_position.y;
 
-                        tracing::trace!("placing crosshair at {}, {}", highlighted_position.x, highlighted_position.y);
-
+                        let label = labels.0.get(index).unwrap();
                         // FIXME: hack right now to pad text away from the crosshair, perhaps need a
                         // parent child relationship here so we can position text relative to
                         // cursor?
-                        let label = labels.0.get(index).unwrap();
-                        text.sections[0].value = format!("{} = {}, {}", name.0, label.0, label.1);
+                        text.sections[0].value = format!("    {} = {}, {}", name.0, label.0, label.1);
                         *visibility = Visibility::Visible;
 
                         // FIXME: no!

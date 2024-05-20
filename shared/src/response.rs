@@ -10,8 +10,9 @@ pub struct GraphList {
 
 pub type Points = Vec<(NaiveDate, f32)>;
 
-#[derive(Serialize, Deserialize, Debug, PartialEq)]
-pub struct Graph<'a> {
-    pub name: &'a str,
+#[derive(Serialize, Clone, Deserialize, Debug, PartialEq)]
+pub struct Graph {
+    pub name: String,
     pub points: Points,
+    pub color: (u8, u8, u8),
 }
