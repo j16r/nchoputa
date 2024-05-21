@@ -642,7 +642,7 @@ fn on_mousemotion(
                         // FIXME: hack right now to pad text away from the crosshair, perhaps need a
                         // parent child relationship here so we can position text relative to
                         // cursor?
-                        text.sections[0].value = format!("    {} = {}, {}", name.0, label.0, label.1);
+                        text.sections[0].value = format!("    {} = {}, {:.2}", name.0, label.0, label.1);
                         *visibility = Visibility::Visible;
 
                         // FIXME: no!
