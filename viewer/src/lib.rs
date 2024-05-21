@@ -299,20 +299,20 @@ fn graph_added_listener(
         axes.x.min = points
             .iter()
             .map(|(a, _)| date_scale(a))
-            .fold(f32::INFINITY, |a, b| a.min(b));
+            .fold(f32::MAX, |a, b| a.min(b));
         axes.x.max = points
             .iter()
             .map(|(a, _)| date_scale(a))
-            .fold(f32::NEG_INFINITY, |a, b| a.max(b));
+            .fold(f32::MIN, |a, b| a.max(b));
 
         axes.y.min = points
             .iter()
             .map(|(_, a)| a)
-            .fold(f32::INFINITY, |a, b| a.min(*b));
+            .fold(f32::MAX, |a, b| a.min(*b));
         axes.y.max = points
             .iter()
             .map(|(_, a)| a)
-            .fold(f32::NEG_INFINITY, |a, b| a.max(*b));
+            .fold(f32::MIN, |a, b| a.max(*b));
 
         let mut camera = cameras
             .get_single_mut()
@@ -470,6 +470,7 @@ pub struct Axes {
     x: Scale,
     y: Scale,
     view_size: Size,
+    max_ticks: usize,
 }
 
 impl Axes {
@@ -486,8 +487,70 @@ impl Axes {
                 max: 100.0,
             },
             view_size: Size::default(),
+            max_ticks: 10,
         }
     }
+
+    fn nice_num(&self, lst: f32, rround: bool) -> f32 {
+        let exponent = f32::floor(f32::log10(lst));
+        let fraction = lst / f32::powf(10.0, exponent);
+
+        let nice_fraction = if rround {
+            if fraction < 1.5 {
+                1.0
+            } else if fraction < 3.0 {
+                2.0
+            } else if fraction < 7.0 {
+                5.0
+            } else {
+                10.0
+            }
+        } else {
+            if fraction <= 1.0 {
+                1.0
+            } else if fraction <= 2.0 {
+                2.0
+            } else if fraction <= 5.0 {
+                5.0
+            } else {
+                10.0
+            }
+        };
+
+        nice_fraction * f32::powf(10.0, exponent)
+    }
+
+    fn range(&self) -> f32 {
+        self.nice_num(self.x.max - self.x.min, false)
+    }
+
+    fn tick_spacing(&self) -> f32 {
+        self.nice_num(self.range() / (self.max_ticks - 1) as f32, true)
+    }
+
+    fn scale_x_max(&self) -> f32 {
+        f32::ceil(self.x.max / self.tick_spacing()) * self.tick_spacing()
+    }
+
+    fn scale_x_min(&self) -> f32 {
+        f32::ceil(self.x.min / self.tick_spacing()) * self.tick_spacing()
+    }
+
+    fn scale_y_max(&self) -> f32 {
+        f32::ceil(self.y.max / self.tick_spacing()) * self.tick_spacing()
+    }
+
+    fn scale_y_min(&self) -> f32 {
+        f32::ceil(self.y.min / self.tick_spacing()) * self.tick_spacing()
+    }
+}
+
+#[test]
+fn test_axes_scale() {
+    let a = Axes::new();
+    assert_eq!(a.scale_x_min(), 0.0);
+    assert_eq!(a.scale_x_max(), 100.0);
+    assert_eq!(a.tick_spacing(), 10.0);
 }
 
 impl From<&Axes> for Mesh {
@@ -503,12 +566,11 @@ impl From<&Axes> for Mesh {
         vertices.push([-min_x, min_y, 0.0]);
         vertices.push([-min_x, -min_y, 0.0]);
         vertices.push([min_x, -min_y, 0.0]);
-        normals.push(Vec3::ZERO.to_array());
-        uvs.push([0.0; 2]);
-        normals.push(Vec3::ZERO.to_array());
-        uvs.push([0.0; 2]);
-        normals.push(Vec3::ZERO.to_array());
-        uvs.push([0.0; 2]);
+
+        vertices.iter().for_each(|_| {
+            normals.push(Vec3::ZERO.to_array());
+            uvs.push([0.0; 2]);
+        });
 
         // This tells wgpu that the positions are a list of points
         // where a line will be drawn between each consecutive point
@@ -531,18 +593,55 @@ impl Axes {
         let mut uvs = vec![];
 
         let padding = self.view_size.width * 0.08;
-        let min_x = (self.view_size.width - padding) / 2.0;
-        let min_y = (self.view_size.height - padding) / 2.0;
+        let width = self.view_size.width - padding;
+        let height = self.view_size.height - padding;
+        let min_x = width / 2.0;
+        let min_y = height / 2.0;
 
         vertices.push([-min_x, min_y, 0.0]);
+
+        let (min, max) = (self.scale_y_min(), self.scale_y_max());
+        for point in std::iter::successors(Some(min), |i| {
+            let next = i + self.tick_spacing();
+            (next <= max).then_some(next)
+        }) {
+            let range = max - min;
+            let offset = point - min;
+            let ratio = offset / range;
+            let y = (ratio * height) - min_y;
+
+            vertices.push([-min_x, -y, 0.0]);
+            vertices.push([-min_x - 15.0, -y, 0.0]);
+            vertices.push([-min_x, -y, 0.0]);
+        }
+
         vertices.push([-min_x, -min_y, 0.0]);
+
+        let (min, max) = (self.scale_x_min(), self.scale_x_max());
+        for point in std::iter::successors(Some(min), |i| {
+            let next = i + self.tick_spacing();
+            (next <= max).then_some(next)
+        }) {
+            let range = max - min;
+            let offset = point - min;
+            let ratio = offset / range;
+            let x = (ratio * width) - min_x;
+
+            vertices.push([-x, -min_y, 0.0]);
+            vertices.push([-x, -min_y - 15.0, 0.0]);
+            vertices.push([-x, -min_y, 0.0]);
+        }
+
         vertices.push([min_x, -min_y, 0.0]);
-        normals.push(Vec3::ZERO.to_array());
-        uvs.push([0.0; 2]);
-        normals.push(Vec3::ZERO.to_array());
-        uvs.push([0.0; 2]);
-        normals.push(Vec3::ZERO.to_array());
-        uvs.push([0.0; 2]);
+
+        vertices.iter().for_each(|_| {
+            normals.push(Vec3::ZERO.to_array());
+            uvs.push([0.0; 2]);
+        });
+        // normals.push(Vec3::ZERO.to_array());
+        // uvs.push([0.0; 2]);
+        // normals.push(Vec3::ZERO.to_array());
+        // uvs.push([0.0; 2]);
 
         mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, vertices);
         mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, normals);
@@ -584,17 +683,18 @@ fn on_mousewheel(
     mut event_reader: EventReader<MouseWheel>,
     mut cameras: Query<&mut Transform, With<SceneCamera>>,
 ) {
-    let scale = 100.0;
+    let span = 16.0;
     for e in event_reader.read() {
         let mut camera = cameras
             .get_single_mut()
             .expect("could not find scene camera");
 
         let factor = if e.y >= 0.0 {
-            e.y / scale
+            e.y / span
         } else {
-            1.0 / (f32::abs(e.y) / scale)
+            1.0 / (f32::abs(e.y) / span)
         };
+        tracing::trace!("e.y = {}, factor = {}", e.y, factor);
         camera.scale *= Vec3::new(factor, factor, 1.0);
     }
 }

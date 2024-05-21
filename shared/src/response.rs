@@ -16,3 +16,33 @@ pub struct Graph {
     pub points: Points,
     pub color: (u8, u8, u8),
 }
+
+impl Graph {
+    fn max_x(&self) -> NaiveDate {
+        self.points
+            .last()
+            .and_then(|point| Some(point.0))
+            .unwrap_or_default()
+    }
+
+    fn min_x(&self) -> NaiveDate {
+        self.points
+            .first()
+            .and_then(|point| Some(point.0))
+            .unwrap_or_default()
+    }
+
+    fn max_y(&self) -> f32 {
+        self.points
+            .first()
+            .and_then(|point| Some(point.1))
+            .unwrap_or_default()
+    }
+
+    fn min_y(&self) -> f32 {
+        self.points
+            .first()
+            .and_then(|point| Some(point.1))
+            .unwrap_or_default()
+    }
+}

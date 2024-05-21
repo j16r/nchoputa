@@ -40,7 +40,6 @@ struct Row {
     Value: f32,
 }
 
-
 //
 // EAFDCF
 // 8E8358
