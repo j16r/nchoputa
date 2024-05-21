@@ -602,7 +602,7 @@ fn on_mousewheel(
 fn on_mousemotion(
     mouse_button_input: Res<ButtonInput<MouseButton>>,
     mut event_reader: EventReader<MouseMotion>,
-    cameras: Query<(&Camera, &GlobalTransform), With<SceneCamera>>,
+    mut cameras: Query<(&mut Camera, &mut Transform, &mut GlobalTransform), With<SceneCamera>>,
     graphs: Query<(&GraphPoints, &GraphLabels, &GraphName)>,
     windows: Query<&Window, With<PrimaryWindow>>,
     mut cursor: Query<(&Crosshair, &mut Transform, &mut Text, &mut Visibility), Without<SceneCamera>>,
@@ -612,28 +612,29 @@ fn on_mousemotion(
         .expect("could not get the primary window");
 
     for e in event_reader.read() {
-        let (camera, camera_transform) = cameras.single();
+        let (camera, mut camera_transform, camera_global_transform) = cameras.single_mut();
 
         if mouse_button_input.pressed(MouseButton::Middle) {
-            tracing::trace!("mouse moved {}, {}", e.delta.x, e.delta.y);
-
-        //     let x = -e.delta.x * camera.scale.x;
-        //     let y = e.delta.y * camera.scale.y;
-        //     camera_transform.translation += Vec3::new(x, y, 0.0);
+            let x = -e.delta.x * camera_transform.scale.x;
+            let y = e.delta.y * camera_transform.scale.y;
+            camera_transform.translation += Vec3::new(x, y, 0.0);
         }
 
         if let Some(scene_position) = window.cursor_position()
-            .and_then(|c| camera.viewport_to_world(camera_transform, c))
-            .map(|ray| ray.origin.truncate()) {
+            .and_then(|c| camera.viewport_to_world_2d(&camera_global_transform, c)) {
 
             let (_, mut crosshair, mut text, mut visibility) =
                 cursor.get_single_mut().expect("could not get crosshair");
             *visibility = Visibility::Hidden;
 
+            // graphs.iter().map(|(points, labels, name)| {
+            //     find_closest_point(scene_position, points.0.iter())
+            // }).flatten()
+
             for (points, labels, name) in graphs.iter() {
                 // Is the mouse near a point on this graph?
                 if let Some((index, Vec2{x: px, y: py})) = find_closest_point(scene_position, points.0.iter()) {
-                    if let Some(highlighted_position) = camera.world_to_viewport(camera_transform, Vec3{x: px, y: py, z: 0.0}) {
+                    if let Some(highlighted_position) = camera.world_to_viewport(&camera_global_transform, Vec3{x: px, y: py, z: 0.0}) {
                         crosshair.translation.x = highlighted_position.x - window.width() / 2.0;
                         crosshair.translation.y = window.height() / 2.0 - highlighted_position.y;
 
