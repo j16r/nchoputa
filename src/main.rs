@@ -53,6 +53,7 @@ async fn show_graph(name: web::Path<String>) -> Result<impl Responder> {
                 .from_reader(include_str!("../data/sealevel/csiro.tsv").as_bytes());
             let mut graph = Graph {
                 name: name.to_string(),
+                description: "Change in sea level in millimeters compared to the 1993-2008 average from the sea level group of CSIRO (Commonwealth Scientific and Industrial Research Organisation), Australia's national science agency. It is based on the paper Church, J. A., & White, N. J. (2011). Sea-Level Rise from the Late 19th to the Early 21st Century. Surveys in Geophysics, 32(4), 585Ð602. https://doi.org/10.1007/s10712-011-9119-1. ".to_string(),
                 points: Vec::new(),
                 color: (0xB1, 0xF8, 0xF2),
             };
@@ -75,6 +76,7 @@ async fn show_graph(name: web::Path<String>) -> Result<impl Responder> {
                 .from_reader(include_str!("../data/sealevel/uhslc.tsv").as_bytes());
             let mut graph = Graph {
                 name: name.to_string(),
+                description: "Change in sea level in millimeters compared to the 1993-2008 average from the University of Hawaii Sea Level Center (http://uhslc.soest.hawaii.edu/data/?fd). It is based on a weighted average of 373 global tide gauge records collected by the U.S. National Ocean Service, UHSLC, and partner agencies worldwide.".to_string(),
                 points: Vec::new(),
                 color: (0xBC, 0xD3, 0x9C),
             };
@@ -94,6 +96,7 @@ async fn show_graph(name: web::Path<String>) -> Result<impl Responder> {
         "Dev" => {
             let mut graph = Graph {
                 name: name.to_string(),
+                description: "Graph for development, 3 simple points.".to_string(),
                 points: Vec::new(),
                 color: (0xFF, 0xFC, 0x99),
             };

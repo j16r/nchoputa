@@ -9,14 +9,14 @@ use bevy::{
     input::mouse::MouseButton,
     input::mouse::MouseMotion,
     input::mouse::MouseWheel,
-    render::mesh::Mesh,
-    render::render_resource::PrimitiveTopology,
-    render::render_asset::RenderAssetUsages,
-    render::camera::ClearColorConfig,
-    sprite::MaterialMesh2dBundle,
-    window::{PrimaryWindow, WindowResized, PresentMode},
-    render::view::visibility::RenderLayers,
     log::LogPlugin,
+    render::camera::ClearColorConfig,
+    render::mesh::Mesh,
+    render::render_asset::RenderAssetUsages,
+    render::render_resource::PrimitiveTopology,
+    render::view::visibility::RenderLayers,
+    sprite::MaterialMesh2dBundle,
+    window::{PresentMode, PrimaryWindow, WindowResized},
 };
 use bevy_egui::{egui, EguiContexts, EguiPlugin};
 use chrono::NaiveDate;
@@ -26,8 +26,8 @@ use shared::response::{Graph, GraphList};
 
 mod wasm {
 
-    use tracing_subscriber::{EnvFilter, fmt::format::Pretty, filter::LevelFilter, prelude::*};
-    use tracing_web::{MakeWebConsoleWriter, performance_layer};
+    use tracing_subscriber::{filter::LevelFilter, fmt::format::Pretty, prelude::*, EnvFilter};
+    use tracing_web::{performance_layer, MakeWebConsoleWriter};
     use wasm_bindgen::prelude::*;
 
     #[allow(non_snake_case)]
@@ -40,15 +40,14 @@ mod wasm {
             .with_ansi(false)
             .without_time()
             .with_writer(MakeWebConsoleWriter::new().with_pretty_level());
-        let perf_layer = performance_layer()
-            .with_details_from_fields(Pretty::default());
+        let perf_layer = performance_layer().with_details_from_fields(Pretty::default());
 
         tracing_subscriber::registry()
             .with(
                 EnvFilter::builder()
                     .with_default_directive(LevelFilter::WARN.into())
                     .parse("viewer=trace")
-                    .unwrap()
+                    .unwrap(),
             )
             .with(fmt_layer)
             .with(perf_layer)
@@ -62,16 +61,19 @@ pub fn main() {
     tracing::info!("starting up...");
 
     let mut app = App::new();
-    app
-        .insert_resource(AssetMetaCheck::Never)
-        .add_plugins(DefaultPlugins.set(WindowPlugin {
-            primary_window: Some(Window {
-                title: "ncho".to_string(),
-                present_mode: PresentMode::AutoVsync,
-                ..default()
-            }),
-            ..default()
-        }).disable::<LogPlugin>())
+    app.insert_resource(AssetMetaCheck::Never)
+        .add_plugins(
+            DefaultPlugins
+                .set(WindowPlugin {
+                    primary_window: Some(Window {
+                        title: "ncho".to_string(),
+                        present_mode: PresentMode::AutoVsync,
+                        ..default()
+                    }),
+                    ..default()
+                })
+                .disable::<LogPlugin>(),
+        )
         // XXX: Doesn't do any filtering?
         // }).set(LogPlugin{
         //     level: Level::ERROR,
@@ -190,46 +192,51 @@ fn ui(
             .anchor(egui::Align2::RIGHT_TOP, [-100.0, 100.0])
             .show(egui_context.ctx_mut(), |ui| {
                 let graph_list = graph_list.lock().unwrap();
-                for (label, url) in graph_list.as_ref().unwrap().graphs.iter() {
-                    let mut graphs = graphs.lock().unwrap();
-                    let graph = graphs.get(label);
-                    let mut present = graph.is_some();
+                ui.group(|ui| {
+                    ui.label("Sea Level");
 
-                    let mut fetching = fetching_graphs.lock().unwrap();
-                    let enabled = fetching.get(label).is_none();
-                    // tracing::trace!("rendering item {}", label);
-                    ui.add_enabled_ui(enabled, |ui| {
-                        if ui.checkbox(&mut present, label).clicked() {
-                            if present {
-                                graphs.insert(label.clone(), url.clone());
-                                fetching.insert(label.clone(), url.clone());
+                    for (label, url) in graph_list.as_ref().unwrap().graphs.iter() {
+                        let mut graphs = graphs.lock().unwrap();
+                        let graph = graphs.get(label);
+                        let mut present = graph.is_some();
 
-                                let request = ehttp::Request::get(url);
+                        let mut fetching = fetching_graphs.lock().unwrap();
+                        let enabled = fetching.get(label).is_none();
 
-                                let label = label.clone();
-                                let loaded_graphs = state.loaded_graphs.clone();
-                                let fetchin_graphs = state.fetching_graphs.clone();
-                                ehttp::fetch(
-                                    request,
-                                    move |result: ehttp::Result<ehttp::Response>| match result {
-                                        Ok(v) if v.status == 200 => {
-                                            let graph: Graph = from_bytes(&v.bytes).unwrap();
-                                            fetchin_graphs.lock().unwrap().remove(&label);
-                                            loaded_graphs
-                                                .lock()
-                                                .unwrap()
-                                                .insert(label, graph);
-                                        }
-                                        _ => {}
-                                    },
-                                );
-                            } else {
-                                graphs.remove(label);
-                                state.unloaded_graphs.lock().unwrap().push(label.clone());
+                        ui.add_enabled_ui(enabled, |ui| {
+                            if ui
+                                .checkbox(&mut present, label)
+                                // .on_hover_text(graph.description)
+                                .clicked()
+                            {
+                                if present {
+                                    graphs.insert(label.clone(), url.clone());
+                                    fetching.insert(label.clone(), url.clone());
+
+                                    let request = ehttp::Request::get(url);
+
+                                    let label = label.clone();
+                                    let loaded_graphs = state.loaded_graphs.clone();
+                                    let fetchin_graphs = state.fetching_graphs.clone();
+                                    ehttp::fetch(
+                                        request,
+                                        move |result: ehttp::Result<ehttp::Response>| match result {
+                                            Ok(v) if v.status == 200 => {
+                                                let graph: Graph = from_bytes(&v.bytes).unwrap();
+                                                fetchin_graphs.lock().unwrap().remove(&label);
+                                                loaded_graphs.lock().unwrap().insert(label, graph);
+                                            }
+                                            _ => {}
+                                        },
+                                    );
+                                } else {
+                                    graphs.remove(label);
+                                    state.unloaded_graphs.lock().unwrap().push(label.clone());
+                                }
                             }
-                        }
-                    });
-                }
+                        });
+                    }
+                });
             });
     }
 
@@ -282,37 +289,25 @@ fn graph_added_listener(
                     points: mesh_points,
                 }))
                 .into(),
-            material: materials.add(Color::rgb_u8(event.graph.color.0, event.graph.color.1, event.graph.color.2)),
+            material: materials.add(Color::rgb_u8(
+                event.graph.color.0,
+                event.graph.color.1,
+                event.graph.color.2,
+            )),
             ..default()
         };
         commands
-            .spawn((
-                mesh_bundle,
-                RenderLayers::layer(0),
-            ))
+            .spawn((mesh_bundle, RenderLayers::layer(0)))
             .insert(GraphName(event.graph_name.to_string()))
             .insert(GraphPoints(graph_points))
             .insert(GraphLabels(graph_labels));
 
         // Recalculate the scales
         let (mut axes, handle) = axes.get_single_mut().unwrap();
-        axes.x.min = points
-            .iter()
-            .map(|(a, _)| date_scale(a))
-            .fold(f32::MAX, |a, b| a.min(b));
-        axes.x.max = points
-            .iter()
-            .map(|(a, _)| date_scale(a))
-            .fold(f32::MIN, |a, b| a.max(b));
-
-        axes.y.min = points
-            .iter()
-            .map(|(_, a)| a)
-            .fold(f32::MAX, |a, b| a.min(*b));
-        axes.y.max = points
-            .iter()
-            .map(|(_, a)| a)
-            .fold(f32::MIN, |a, b| a.max(*b));
+        axes.x.min = date_scale(&event.graph.min_x());
+        axes.x.max = date_scale(&event.graph.max_x());
+        axes.y.min = event.graph.min_y();
+        axes.y.max = event.graph.max_y();
 
         let mut camera = cameras
             .get_single_mut()
@@ -363,10 +358,7 @@ fn setup(
     asset_server: Res<AssetServer>,
 ) {
     commands
-        .spawn((
-            Camera2dBundle::default(),
-            RenderLayers::from_layers(&[0])
-        ))
+        .spawn((Camera2dBundle::default(), RenderLayers::from_layers(&[0])))
         .insert(SceneCamera);
 
     // Overlay camera, where axes etc. gets rendered
@@ -381,7 +373,7 @@ fn setup(
                 },
                 ..default()
             },
-            RenderLayers::from_layers(&[1])
+            RenderLayers::from_layers(&[1]),
         ))
         .insert(OverlayCamera);
 
@@ -392,10 +384,7 @@ fn setup(
         ..default()
     };
     commands
-        .spawn((
-            mesh_bundle.clone(),
-            RenderLayers::layer(1),
-        ))
+        .spawn((mesh_bundle.clone(), RenderLayers::layer(1)))
         .insert(axes)
         .insert(mesh_bundle.mesh.0.clone());
 
@@ -419,7 +408,14 @@ fn setup(
         .insert(Crosshair {})
         .insert(Text2dBundle {
             text: Text::from_section("x, y", text_style),
-            transform: Transform{translation: Vec3{x: 70.0, y: 8.0, z: 1.0}, ..default()},
+            transform: Transform {
+                translation: Vec3 {
+                    x: 70.0,
+                    y: 8.0,
+                    z: 1.0,
+                },
+                ..default()
+            },
             ..default()
         })
         .insert(Visibility::Hidden);
@@ -525,7 +521,13 @@ impl Axes {
     }
 
     fn tick_spacing(&self) -> f32 {
-        self.nice_num(self.range() / (self.max_ticks - 1) as f32, true)
+        let original = self.nice_num(self.range() / (self.max_ticks - 1) as f32, true);
+        let factor = (self.x.max - self.x.min) / original;
+        if factor / self.max_ticks as f32 <= 0.5 {
+            original / 2.0
+        } else {
+            original
+        }
     }
 
     fn scale_x_max(&self) -> f32 {
@@ -612,6 +614,7 @@ impl Axes {
 
             vertices.push([-min_x, -y, 0.0]);
             vertices.push([-min_x - 15.0, -y, 0.0]);
+
             vertices.push([-min_x, -y, 0.0]);
         }
 
@@ -705,7 +708,10 @@ fn on_mousemotion(
     mut cameras: Query<(&mut Camera, &mut Transform, &mut GlobalTransform), With<SceneCamera>>,
     graphs: Query<(&GraphPoints, &GraphLabels, &GraphName)>,
     windows: Query<&Window, With<PrimaryWindow>>,
-    mut cursor: Query<(&Crosshair, &mut Transform, &mut Text, &mut Visibility), Without<SceneCamera>>,
+    mut cursor: Query<
+        (&Crosshair, &mut Transform, &mut Text, &mut Visibility),
+        Without<SceneCamera>,
+    >,
 ) {
     let window = windows
         .get_single()
@@ -720,9 +726,10 @@ fn on_mousemotion(
             camera_transform.translation += Vec3::new(x, y, 0.0);
         }
 
-        if let Some(scene_position) = window.cursor_position()
-            .and_then(|c| camera.viewport_to_world_2d(&camera_global_transform, c)) {
-
+        if let Some(scene_position) = window
+            .cursor_position()
+            .and_then(|c| camera.viewport_to_world_2d(&camera_global_transform, c))
+        {
             let (_, mut crosshair, mut text, mut visibility) =
                 cursor.get_single_mut().expect("could not get crosshair");
             *visibility = Visibility::Hidden;
@@ -733,8 +740,17 @@ fn on_mousemotion(
 
             for (points, labels, name) in graphs.iter() {
                 // Is the mouse near a point on this graph?
-                if let Some((index, Vec2{x: px, y: py})) = find_closest_point(scene_position, points.0.iter()) {
-                    if let Some(highlighted_position) = camera.world_to_viewport(&camera_global_transform, Vec3{x: px, y: py, z: 0.0}) {
+                if let Some((index, Vec2 { x: px, y: py })) =
+                    find_closest_point(scene_position, points.0.iter())
+                {
+                    if let Some(highlighted_position) = camera.world_to_viewport(
+                        &camera_global_transform,
+                        Vec3 {
+                            x: px,
+                            y: py,
+                            z: 0.0,
+                        },
+                    ) {
                         crosshair.translation.x = highlighted_position.x - window.width() / 2.0;
                         crosshair.translation.y = window.height() / 2.0 - highlighted_position.y;
 
@@ -742,7 +758,8 @@ fn on_mousemotion(
                         // FIXME: hack right now to pad text away from the crosshair, perhaps need a
                         // parent child relationship here so we can position text relative to
                         // cursor?
-                        text.sections[0].value = format!("    {} = {}, {:.2}", name.0, label.0, label.1);
+                        text.sections[0].value =
+                            format!("    {} = {}, {:.2}", name.0, label.0, label.1);
                         *visibility = Visibility::Visible;
 
                         // FIXME: no!
@@ -754,14 +771,17 @@ fn on_mousemotion(
     }
 }
 
-fn find_closest_point<'a>(to: Vec2, points: impl Iterator<Item = &'a (f32, f32)>) -> Option<(usize, Vec2)> {
+fn find_closest_point<'a>(
+    to: Vec2,
+    points: impl Iterator<Item = &'a (f32, f32)>,
+) -> Option<(usize, Vec2)> {
     let mut smallest_distance = f32::MAX;
     let mut item: Option<(usize, Vec2)> = None;
     for (index, (x, y)) in points.enumerate() {
         let actual_distance = f32::sqrt(f32::powi(to.x - x, 2) + f32::powi(to.y - y, 2));
         if actual_distance < smallest_distance {
             smallest_distance = actual_distance;
-            item = Some((index, Vec2{x: *x, y: *y}));
+            item = Some((index, Vec2 { x: *x, y: *y }));
         }
     }
 
