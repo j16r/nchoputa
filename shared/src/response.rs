@@ -3,22 +3,43 @@ use std::collections::HashMap;
 use chrono::NaiveDate;
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize, Debug, Eq, PartialEq)]
+#[derive(Serialize, Clone, Deserialize, Debug, Eq, PartialEq)]
 pub struct GraphList {
-    pub graphs: HashMap<String, String>,
+    pub graphs: Vec<GraphSummary>,
+}
+
+#[derive(Serialize, Clone, Deserialize, Debug, Eq, PartialEq)]
+pub struct GraphIndex {
+    pub graphs: HashMap<String, GraphSummary>,
+}
+
+// #[derive(Serialize, Clone, Deserialize, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug)]
+pub struct Graph {
+    pub name: &'static str,
+    pub description: &'static str,
+    pub color: (u8, u8, u8),
+    pub points: Points,
+}
+
+#[derive(Serialize, Clone, Deserialize, Debug, Eq, PartialEq)]
+pub struct GraphSummary {
+    pub name: String,
+    pub uri: String,
+    pub description: String,
+    pub color: (u8, u8, u8),
 }
 
 pub type Points = Vec<(NaiveDate, f32)>;
 
 #[derive(Serialize, Clone, Deserialize, Debug, PartialEq)]
-pub struct Graph {
+pub struct GraphData {
     pub name: String,
-    pub description: String,
-    pub points: Points,
     pub color: (u8, u8, u8),
+    pub points: Points,
 }
 
-impl Graph {
+impl GraphData {
     pub fn max_x(&self) -> NaiveDate {
         // self.points
         //     .iter()

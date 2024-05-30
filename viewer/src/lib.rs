@@ -22,7 +22,7 @@ use bevy_egui::{egui, EguiContexts, EguiPlugin};
 use chrono::NaiveDate;
 use postcard::from_bytes;
 use serde::{Deserialize, Serialize};
-use shared::response::{Graph, GraphList};
+use shared::response::{GraphData, GraphList, GraphSummary};
 
 mod wasm {
 
@@ -117,8 +117,8 @@ struct State {
     loaded_legend: Arc<AtomicBool>,
     graph_list: Arc<Mutex<Option<GraphList>>>,
     fetching_graphs: Arc<Mutex<HashMap<String, String>>>,
-    graphs: Arc<Mutex<HashMap<String, String>>>,
-    loaded_graphs: Arc<Mutex<HashMap<String, Graph>>>,
+    graphs: Arc<Mutex<HashMap<String, GraphSummary>>>,
+    loaded_graphs: Arc<Mutex<HashMap<String, GraphData>>>,
     unloaded_graphs: Arc<Mutex<Vec<String>>>,
 }
 
@@ -139,7 +139,7 @@ impl State {
 #[derive(Event)]
 struct EventGraphAdded {
     graph_name: String,
-    graph: Graph,
+    graph: GraphData,
 }
 
 #[derive(Event)]
@@ -195,25 +195,26 @@ fn ui(
                 ui.group(|ui| {
                     ui.label("Sea Level");
 
-                    for (label, url) in graph_list.as_ref().unwrap().graphs.iter() {
+                    for graph in graph_list.as_ref().unwrap().graphs.iter() {
                         let mut graphs = graphs.lock().unwrap();
-                        let graph = graphs.get(label);
-                        let mut present = graph.is_some();
+                        let label = graph.name.to_string();
+                        let mut present = graphs.get(&label).is_some();
 
                         let mut fetching = fetching_graphs.lock().unwrap();
-                        let enabled = fetching.get(label).is_none();
+                        let enabled = fetching.get(&label).is_none();
 
                         ui.add_enabled_ui(enabled, |ui| {
                             if ui
-                                .checkbox(&mut present, label)
-                                // .on_hover_text(graph.description)
+                                .checkbox(&mut present, &label)
+                                .on_hover_text(&graph.description)
                                 .clicked()
                             {
                                 if present {
-                                    graphs.insert(label.clone(), url.clone());
-                                    fetching.insert(label.clone(), url.clone());
+                                    let uri =& graph.uri;
+                                    graphs.insert(label.clone(), graph.clone());
+                                    fetching.insert(label.clone(), uri.clone());
 
-                                    let request = ehttp::Request::get(url);
+                                    let request = ehttp::Request::get(uri);
 
                                     let label = label.clone();
                                     let loaded_graphs = state.loaded_graphs.clone();
@@ -222,7 +223,7 @@ fn ui(
                                         request,
                                         move |result: ehttp::Result<ehttp::Response>| match result {
                                             Ok(v) if v.status == 200 => {
-                                                let graph: Graph = from_bytes(&v.bytes).unwrap();
+                                                let graph: GraphData = from_bytes(&v.bytes).unwrap();
                                                 fetchin_graphs.lock().unwrap().remove(&label);
                                                 loaded_graphs.lock().unwrap().insert(label, graph);
                                             }
@@ -230,7 +231,7 @@ fn ui(
                                         },
                                     );
                                 } else {
-                                    graphs.remove(label);
+                                    graphs.remove(&label);
                                     state.unloaded_graphs.lock().unwrap().push(label.clone());
                                 }
                             }
@@ -501,16 +502,14 @@ impl Axes {
             } else {
                 10.0
             }
+        } else if fraction <= 1.0 {
+            1.0
+        } else if fraction <= 2.0 {
+            2.0
+        } else if fraction <= 5.0 {
+            5.0
         } else {
-            if fraction <= 1.0 {
-                1.0
-            } else if fraction <= 2.0 {
-                2.0
-            } else if fraction <= 5.0 {
-                5.0
-            } else {
-                10.0
-            }
+            10.0
         };
 
         nice_fraction * f32::powf(10.0, exponent)

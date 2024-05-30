@@ -11,6 +11,7 @@ actix-web = "*"
 chrono = { version = "*", features = [ "serde" ] }
 clap = { version = "*", features = [ "derive" ] }
 csv = "*"
+once_cell = "*"
 serde = "*"
 shared = { path = "./shared" }
 tracing = "*"

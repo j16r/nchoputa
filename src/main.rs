@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+
 
 use actix_files as fs;
 use actix_web::{
@@ -7,9 +7,11 @@ use actix_web::{
 use chrono::NaiveDate;
 use clap::Parser;
 use postcard::to_allocvec;
-use serde::Deserialize;
-use shared::response::{Graph, GraphList};
-use tracing::{debug, error, info};
+
+use shared::response::{GraphData, GraphList, GraphSummary};
+use tracing::{error, info};
+
+mod graphs;
 
 #[get("/favicon.ico")]
 async fn favicon() -> Result<fs::NamedFile> {
@@ -18,26 +20,21 @@ async fn favicon() -> Result<fs::NamedFile> {
 
 #[get("/api/graphs")]
 async fn list_graphs() -> impl Responder {
-    let mut graph_list = GraphList {
-        graphs: HashMap::new(),
-    };
-    graph_list
-        .graphs
-        .insert("CSIRO".to_string(), "/api/graphs/CSIRO".to_string());
-    graph_list
-        .graphs
-        .insert("UHSLC".to_string(), "/api/graphs/UHSLC".to_string());
-    graph_list
-        .graphs
-        .insert("Dev".to_string(), "/api/graphs/Dev".to_string());
-    to_allocvec(&graph_list).unwrap()
-}
-
-#[derive(Debug, Deserialize)]
-#[allow(non_snake_case)]
-struct Row {
-    Date: NaiveDate,
-    Value: f32,
+    let list: Vec<GraphSummary> = graphs::INDEX
+        .read()
+        .unwrap()
+        .iter()
+        .map(|(_, graph)| GraphSummary {
+            name: graph.name.to_string(),
+            uri: format!("/api/graphs/{}", graph.name),
+            description: graph.description.to_string(),
+            color: graph.color,
+        })
+        .collect();
+    to_allocvec(&GraphList { graphs: list }).map_err(|e| {
+        error!("error encoding graph index: {}", e);
+        error::ErrorInternalServerError("error encoding graph index")
+    })
 }
 
 //
@@ -46,76 +43,30 @@ struct Row {
 //
 #[get("/api/graphs/{name}")]
 async fn show_graph(name: web::Path<String>) -> Result<impl Responder> {
-    match name.as_str() {
-        "CSIRO" => {
-            let mut rdr = csv::ReaderBuilder::new()
-                .delimiter(b'\t')
-                .from_reader(include_str!("../data/sealevel/csiro.tsv").as_bytes());
-            let mut graph = Graph {
+    let graph = match graphs::INDEX.read().unwrap().get(name.as_str()) {
+        Some(graph) => GraphData {
+            name: graph.name.to_string(),
+            color: graph.color,
+            points: graph.points.clone(),
+        },
+        None if name.as_str() == "Dev" => {
+            let mut points = Vec::new();
+            points.push((NaiveDate::from_ymd_opt(0, 1, 1).unwrap(), 0.0f32));
+            points.push((NaiveDate::from_ymd_opt(0, 1, 2).unwrap(), 1.0f32));
+            points.push((NaiveDate::from_ymd_opt(0, 1, 3).unwrap(), 2.0f32));
+            GraphData {
                 name: name.to_string(),
-                description: "Change in sea level in millimeters compared to the 1993-2008 average from the sea level group of CSIRO (Commonwealth Scientific and Industrial Research Organisation), Australia's national science agency. It is based on the paper Church, J. A., & White, N. J. (2011). Sea-Level Rise from the Late 19th to the Early 21st Century. Surveys in Geophysics, 32(4), 585Ð602. https://doi.org/10.1007/s10712-011-9119-1. ".to_string(),
-                points: Vec::new(),
-                color: (0xB1, 0xF8, 0xF2),
-            };
-            for result in rdr.deserialize() {
-                let record: Row = result.map_err(|e| {
-                    error!("error reading dataset {}: {}", name, e);
-                    error::ErrorInternalServerError("error reading source data")
-                })?;
-                debug!("record: {:?}", record);
-                graph.points.push((record.Date, record.Value));
+                color: (0xEA, 0xFD, 0xCF),
+                points,
             }
-            Ok(to_allocvec(&graph).map_err(|e| {
-                error!("error encoding dataset {}: {}", name, e);
-                error::ErrorInternalServerError("error encoding dataset")
-            })?)
         }
-        "UHSLC" => {
-            let mut rdr = csv::ReaderBuilder::new()
-                .delimiter(b'\t')
-                .from_reader(include_str!("../data/sealevel/uhslc.tsv").as_bytes());
-            let mut graph = Graph {
-                name: name.to_string(),
-                description: "Change in sea level in millimeters compared to the 1993-2008 average from the University of Hawaii Sea Level Center (http://uhslc.soest.hawaii.edu/data/?fd). It is based on a weighted average of 373 global tide gauge records collected by the U.S. National Ocean Service, UHSLC, and partner agencies worldwide.".to_string(),
-                points: Vec::new(),
-                color: (0xBC, 0xD3, 0x9C),
-            };
-            for result in rdr.deserialize() {
-                let record: Row = result.map_err(|e| {
-                    error!("error reading dataset {}: {}", name, e);
-                    error::ErrorInternalServerError("error reading source data")
-                })?;
-                debug!("record: {:?}", record);
-                graph.points.push((record.Date, record.Value));
-            }
-            Ok(to_allocvec(&graph).map_err(|e| {
-                error!("error encoding dataset {}: {}", name, e);
-                error::ErrorInternalServerError("error encoding dataset")
-            })?)
-        }
-        "Dev" => {
-            let mut graph = Graph {
-                name: name.to_string(),
-                description: "Graph for development, 3 simple points.".to_string(),
-                points: Vec::new(),
-                color: (0xFF, 0xFC, 0x99),
-            };
-            graph
-                .points
-                .push((NaiveDate::from_ymd_opt(0, 1, 1).unwrap(), 0.0f32));
-            graph
-                .points
-                .push((NaiveDate::from_ymd_opt(0, 1, 2).unwrap(), 1.0f32));
-            graph
-                .points
-                .push((NaiveDate::from_ymd_opt(0, 1, 3).unwrap(), 2.0f32));
-            Ok(to_allocvec(&graph).map_err(|e| {
-                error!("error encoding dataset {}: {}", name, e);
-                error::ErrorInternalServerError("error encoding dataset")
-            })?)
-        }
-        _ => Err(error::ErrorNotFound(format!("no graph with name {}", name))),
-    }
+        _ => return Err(error::ErrorNotFound(format!("no graph with name {}", name))),
+    };
+
+    to_allocvec(&graph).map_err(|e| {
+        error!("error encoding dataset {}: {}", name, e);
+        error::ErrorInternalServerError("error encoding dataset")
+    })
 }
 
 #[derive(Parser, Debug)]
