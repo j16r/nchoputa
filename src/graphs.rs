@@ -3,7 +3,7 @@ use std::{collections::HashMap, fs::File, io::Result};
 
 use chrono::NaiveDate;
 use once_cell::sync::Lazy;
-use serde::{Deserialize};
+use serde::Deserialize;
 
 use shared::response::{Graph, Points};
 

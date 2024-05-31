@@ -1,5 +1,3 @@
-
-
 use actix_files as fs;
 use actix_web::{
     error, get, http::header, middleware, web, App, HttpResponse, HttpServer, Responder, Result,
@@ -50,10 +48,11 @@ async fn show_graph(name: web::Path<String>) -> Result<impl Responder> {
             points: graph.points.clone(),
         },
         None if name.as_str() == "Dev" => {
-            let mut points = Vec::new();
-            points.push((NaiveDate::from_ymd_opt(0, 1, 1).unwrap(), 0.0f32));
-            points.push((NaiveDate::from_ymd_opt(0, 1, 2).unwrap(), 1.0f32));
-            points.push((NaiveDate::from_ymd_opt(0, 1, 3).unwrap(), 2.0f32));
+            let points = vec![
+                (NaiveDate::from_ymd_opt(0, 1, 1).unwrap(), 0.0f32),
+                (NaiveDate::from_ymd_opt(0, 1, 2).unwrap(), 1.0f32),
+                (NaiveDate::from_ymd_opt(0, 1, 3).unwrap(), 2.0f32),
+            ];
             GraphData {
                 name: name.to_string(),
                 color: (0xEA, 0xFD, 0xCF),

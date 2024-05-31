@@ -48,8 +48,7 @@ impl GraphData {
         // XXX: If we assume this and all graphs are left-right time series, this should always be
         // true?
         self.points
-            .last()
-            .and_then(|point| Some(point.0))
+            .last().map(|point| point.0)
             .unwrap_or_default()
     }
 
@@ -60,8 +59,7 @@ impl GraphData {
         //     .fold(NaiveDate::MAX, |a, b| a.min(*b))
         // XXX: See above
         self.points
-            .first()
-            .and_then(|point| Some(point.0))
+            .first().map(|point| point.0)
             .unwrap_or_default()
     }
 

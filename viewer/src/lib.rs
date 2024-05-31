@@ -102,13 +102,13 @@ pub fn main() {
     tracing::info!("start up complete");
 }
 
-#[derive(Component)]
+#[derive(Component, Debug)]
 struct GraphName(String);
 
-#[derive(Component)]
+#[derive(Component, Debug)]
 struct GraphPoints(Vec<(f32, f32)>);
 
-#[derive(Component)]
+#[derive(Component, Debug)]
 struct GraphLabels(Vec<(NaiveDate, f32)>);
 
 #[derive(Resource)]
@@ -210,7 +210,7 @@ fn ui(
                                 .clicked()
                             {
                                 if present {
-                                    let uri =& graph.uri;
+                                    let uri = &graph.uri;
                                     graphs.insert(label.clone(), graph.clone());
                                     fetching.insert(label.clone(), uri.clone());
 
@@ -223,7 +223,8 @@ fn ui(
                                         request,
                                         move |result: ehttp::Result<ehttp::Response>| match result {
                                             Ok(v) if v.status == 200 => {
-                                                let graph: GraphData = from_bytes(&v.bytes).unwrap();
+                                                let graph: GraphData =
+                                                    from_bytes(&v.bytes).unwrap();
                                                 fetchin_graphs.lock().unwrap().remove(&label);
                                                 loaded_graphs.lock().unwrap().insert(label, graph);
                                             }
@@ -733,37 +734,39 @@ fn on_mousemotion(
                 cursor.get_single_mut().expect("could not get crosshair");
             *visibility = Visibility::Hidden;
 
-            // graphs.iter().map(|(points, labels, name)| {
-            //     find_closest_point(scene_position, points.0.iter())
-            // }).flatten()
+            let close_points = graphs
+                .iter()
+                .filter_map(|(points, labels, name)| {
+                    find_closest_point(scene_position, points.0.iter()).map(|r| (r, labels, name))
+                });
+            let closest_point = close_points.reduce(|acc, e| {
+                let ((_, dl, _), ..) = acc;
+                let ((_, dr, _), ..) = e;
+                if dl < dr {
+                    return acc;
+                }
+                e
+            });
 
-            for (points, labels, name) in graphs.iter() {
-                // Is the mouse near a point on this graph?
-                if let Some((index, Vec2 { x: px, y: py })) =
-                    find_closest_point(scene_position, points.0.iter())
-                {
-                    if let Some(highlighted_position) = camera.world_to_viewport(
-                        &camera_global_transform,
-                        Vec3 {
-                            x: px,
-                            y: py,
-                            z: 0.0,
-                        },
-                    ) {
-                        crosshair.translation.x = highlighted_position.x - window.width() / 2.0;
-                        crosshair.translation.y = window.height() / 2.0 - highlighted_position.y;
+            if let Some(((index, _, Vec2 { x: px, y: py }), labels, name)) = closest_point {
+                if let Some(highlighted_position) = camera.world_to_viewport(
+                    &camera_global_transform,
+                    Vec3 {
+                        x: px,
+                        y: py,
+                        z: 0.0,
+                    },
+                ) {
+                    crosshair.translation.x = highlighted_position.x - window.width() / 2.0;
+                    crosshair.translation.y = window.height() / 2.0 - highlighted_position.y;
 
-                        let label = labels.0.get(index).unwrap();
-                        // FIXME: hack right now to pad text away from the crosshair, perhaps need a
-                        // parent child relationship here so we can position text relative to
-                        // cursor?
-                        text.sections[0].value =
-                            format!("    {} = {}, {:.2}", name.0, label.0, label.1);
-                        *visibility = Visibility::Visible;
-
-                        // FIXME: no!
-                        return;
-                    }
+                    let label = labels.0.get(index).unwrap();
+                    // FIXME: hack right now to pad text away from the crosshair, perhaps need a
+                    // parent child relationship here so we can position text relative to
+                    // cursor?
+                    text.sections[0].value =
+                        format!("    {} = {}, {:.2}", name.0, label.0, label.1);
+                    *visibility = Visibility::Visible;
                 }
             }
         }
@@ -773,14 +776,14 @@ fn on_mousemotion(
 fn find_closest_point<'a>(
     to: Vec2,
     points: impl Iterator<Item = &'a (f32, f32)>,
-) -> Option<(usize, Vec2)> {
+) -> Option<(usize, f32, Vec2)> {
     let mut smallest_distance = f32::MAX;
-    let mut item: Option<(usize, Vec2)> = None;
+    let mut item = None;
     for (index, (x, y)) in points.enumerate() {
         let actual_distance = f32::sqrt(f32::powi(to.x - x, 2) + f32::powi(to.y - y, 2));
         if actual_distance < smallest_distance {
             smallest_distance = actual_distance;
-            item = Some((index, Vec2 { x: *x, y: *y }));
+            item = Some((index, actual_distance, Vec2 { x: *x, y: *y }));
         }
     }
 
