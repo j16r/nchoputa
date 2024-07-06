@@ -61,43 +61,46 @@ pub fn main() {
     tracing::info!("starting up...");
 
     let mut app = App::new();
-    app.insert_resource(AssetMetaCheck::Never)
-        .add_plugins(
-            DefaultPlugins
-                .set(WindowPlugin {
-                    primary_window: Some(Window {
-                        title: "ncho".to_string(),
-                        present_mode: PresentMode::AutoVsync,
-                        ..default()
-                    }),
+    app.add_plugins(
+        DefaultPlugins
+            .set(WindowPlugin {
+                primary_window: Some(Window {
+                    title: "ncho".to_string(),
+                    present_mode: PresentMode::AutoVsync,
                     ..default()
-                })
-                .disable::<LogPlugin>(),
-        )
-        // XXX: Doesn't do any filtering?
-        // }).set(LogPlugin{
-        //     level: Level::ERROR,
-        //     // filter: "wgpu=error,bevy_render=info,bevy_ecs=warn,nchoputa=trace".to_string(),
-        //     filter: "nchoputa=trace".to_string(),
-        //     update_subscriber: None,
-        // }))
-        .insert_resource(State::new())
-        .add_plugins(EguiPlugin)
-        .add_systems(Startup, setup)
-        .add_systems(
-            Update,
-            (
-                on_resize,
-                graph_added_listener,
-                graph_removed_listener,
-                ui,
-                on_mousewheel,
-                on_mousemotion,
-            ),
-        )
-        .add_event::<EventGraphAdded>()
-        .add_event::<EventGraphRemoved>()
-        .run();
+                }),
+                ..default()
+            })
+            .set(AssetPlugin {
+                meta_check: AssetMetaCheck::Never,
+                ..default()
+            })
+            .disable::<LogPlugin>(),
+    )
+    // XXX: Doesn't do any filtering?
+    // }).set(LogPlugin{
+    //     level: Level::ERROR,
+    //     // filter: "wgpu=error,bevy_render=info,bevy_ecs=warn,nchoputa=trace".to_string(),
+    //     filter: "nchoputa=trace".to_string(),
+    //     update_subscriber: None,
+    // }))
+    .insert_resource(State::new())
+    .add_plugins(EguiPlugin)
+    .add_systems(Startup, setup)
+    .add_systems(
+        Update,
+        (
+            on_resize,
+            graph_added_listener,
+            graph_removed_listener,
+            ui,
+            on_mousewheel,
+            on_mousemotion,
+        ),
+    )
+    .add_event::<EventGraphAdded>()
+    .add_event::<EventGraphRemoved>()
+    .run();
 
     tracing::info!("start up complete");
 }
@@ -291,7 +294,7 @@ fn graph_added_listener(
                     points: mesh_points,
                 }))
                 .into(),
-            material: materials.add(Color::rgb_u8(
+            material: materials.add(Color::srgb_u8(
                 event.graph.color.0,
                 event.graph.color.1,
                 event.graph.color.2,
@@ -382,7 +385,7 @@ fn setup(
     let axes = Axes::new();
     let mesh_bundle = MaterialMesh2dBundle {
         mesh: meshes.add(Mesh::from(&axes)).into(),
-        material: materials.add(Color::SILVER),
+        material: materials.add(Color::xyz(0.8, 0.8, 0.8)),
         ..default()
     };
     commands
@@ -734,11 +737,9 @@ fn on_mousemotion(
                 cursor.get_single_mut().expect("could not get crosshair");
             *visibility = Visibility::Hidden;
 
-            let close_points = graphs
-                .iter()
-                .filter_map(|(points, labels, name)| {
-                    find_closest_point(scene_position, points.0.iter()).map(|r| (r, labels, name))
-                });
+            let close_points = graphs.iter().filter_map(|(points, labels, name)| {
+                find_closest_point(scene_position, points.0.iter()).map(|r| (r, labels, name))
+            });
             let closest_point = close_points.reduce(|acc, e| {
                 let ((_, dl, _), ..) = acc;
                 let ((_, dr, _), ..) = e;

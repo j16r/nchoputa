@@ -47,9 +47,7 @@ impl GraphData {
         //     .fold(NaiveDate::MIN, |a, b| a.max(*b))
         // XXX: If we assume this and all graphs are left-right time series, this should always be
         // true?
-        self.points
-            .last().map(|point| point.0)
-            .unwrap_or_default()
+        self.points.last().map(|point| point.0).unwrap_or_default()
     }
 
     pub fn min_x(&self) -> NaiveDate {
@@ -58,9 +56,7 @@ impl GraphData {
         //     .map(|(x, _)| x)
         //     .fold(NaiveDate::MAX, |a, b| a.min(*b))
         // XXX: See above
-        self.points
-            .first().map(|point| point.0)
-            .unwrap_or_default()
+        self.points.first().map(|point| point.0).unwrap_or_default()
     }
 
     pub fn max_y(&self) -> f32 {
