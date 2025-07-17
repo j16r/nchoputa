@@ -359,14 +359,14 @@ fn setup(
     let scene_layer = RenderLayers::from_layers(&[0]);
     commands
         .spawn(SceneCamera)
-        .insert(Camera2d::default())
+        .insert(Camera2d)
         .insert(scene_layer);
 
     // Overlay camera, where axes etc. gets rendered
     let overlay_layer = RenderLayers::from_layers(&[1]);
     commands
         .spawn(OverlayCamera)
-        .insert(Camera2d::default())
+        .insert(Camera2d)
         .insert(Camera {
             clear_color: ClearColorConfig::None,
             order: 1,
@@ -735,7 +735,7 @@ fn on_mousemotion(
             });
 
             if let Some(((index, _, Vec2 { x: px, y: py }), labels, _name)) = closest_point {
-                if let Some(highlighted_position) = camera
+                if let Ok(highlighted_position) = camera
                     .world_to_viewport(
                         &camera_global_transform,
                         Vec3 {
@@ -744,7 +744,6 @@ fn on_mousemotion(
                             z: 0.0,
                         },
                     )
-                    .ok()
                 {
                     *visibility = Visibility::Visible;
 
