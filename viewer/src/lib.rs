@@ -15,7 +15,6 @@ use bevy::{
     render::render_asset::RenderAssetUsages,
     render::render_resource::PrimitiveTopology,
     render::view::visibility::RenderLayers,
-    sprite::MaterialMesh2dBundle,
     window::{PresentMode, PrimaryWindow, WindowResized},
 };
 use bevy_egui::{egui, EguiContexts, EguiPlugin};
@@ -273,7 +272,7 @@ fn graph_added_listener(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
     mut cameras: Query<&mut Transform, With<SceneCamera>>,
-    mut axes: Query<(&mut Axes, &Handle<Mesh>)>,
+    mut axes: Query<(&mut Axes, &Mesh2d)>,
 ) {
     for event in events.read() {
         let points = &event.graph.points;
@@ -288,27 +287,24 @@ fn graph_added_listener(
             mesh_points.push(Vec3::new(x, *y, 0.0));
         }
 
-        let mesh_bundle = MaterialMesh2dBundle {
-            mesh: meshes
-                .add(Mesh::from(LineGraph {
-                    points: mesh_points,
-                }))
-                .into(),
-            material: materials.add(Color::srgb_u8(
-                event.graph.color.0,
-                event.graph.color.1,
-                event.graph.color.2,
-            )),
-            ..default()
-        };
         commands
-            .spawn((mesh_bundle, RenderLayers::layer(0)))
+            .spawn((
+                Mesh2d(meshes.add(Mesh::from(LineGraph {
+                    points: mesh_points,
+                }))),
+                MeshMaterial2d(materials.add(Color::srgb_u8(
+                    event.graph.color.0,
+                    event.graph.color.1,
+                    event.graph.color.2,
+                ))),
+                RenderLayers::layer(0),
+            ))
             .insert(GraphName(event.graph_name.to_string()))
             .insert(GraphPoints(graph_points))
             .insert(GraphLabels(graph_labels));
 
         // Recalculate the scales
-        let (mut axes, handle) = axes.get_single_mut().unwrap();
+        let (mut axes, mesh) = axes.get_single_mut().unwrap();
         axes.x.min = date_scale(&event.graph.min_x());
         axes.x.max = date_scale(&event.graph.max_x());
         axes.y.min = event.graph.min_y();
@@ -327,7 +323,7 @@ fn graph_added_listener(
         camera.scale.x = (axes.x.max - axes.x.min) / axes.view_size.width;
         camera.scale.y = (axes.y.max - axes.y.min) / axes.view_size.height;
 
-        let mesh = meshes.get_mut(handle).unwrap();
+        let mesh = meshes.get_mut(mesh).unwrap();
         axes.update(mesh);
     }
 }
@@ -354,7 +350,7 @@ struct SceneCamera;
 struct OverlayCamera;
 
 #[derive(Component)]
-struct Crosshair;
+struct Crosshair {}
 
 fn setup(
     mut commands: Commands,
@@ -362,68 +358,57 @@ fn setup(
     mut materials: ResMut<Assets<ColorMaterial>>,
     asset_server: Res<AssetServer>,
 ) {
+    let scene_layer = RenderLayers::from_layers(&[0]);
     commands
-        .spawn((Camera2dBundle::default(), RenderLayers::from_layers(&[0])))
-        .insert(SceneCamera);
+        .spawn(SceneCamera)
+        .insert(Camera2d::default())
+        .insert(scene_layer);
 
     // Overlay camera, where axes etc. gets rendered
+    let overlay_layer = RenderLayers::from_layers(&[1]);
     commands
-        .spawn((
-            Camera2dBundle {
-                camera_2d: Camera2d,
-                camera: Camera {
-                    clear_color: ClearColorConfig::None,
-                    order: 1,
-                    ..default()
-                },
-                ..default()
-            },
-            RenderLayers::from_layers(&[1]),
-        ))
-        .insert(OverlayCamera);
+        .spawn(OverlayCamera)
+        .insert(Camera2d::default())
+        .insert(Camera {
+            clear_color: ClearColorConfig::None,
+            order: 1,
+            ..default()
+        })
+        .insert(overlay_layer.clone());
 
     let axes = Axes::new();
-    let mesh_bundle = MaterialMesh2dBundle {
-        mesh: meshes.add(Mesh::from(&axes)).into(),
-        material: materials.add(Color::xyz(0.8, 0.8, 0.8)),
-        ..default()
-    };
-    commands
-        .spawn((mesh_bundle.clone(), RenderLayers::layer(1)))
-        .insert(axes)
-        .insert(mesh_bundle.mesh.0.clone());
+    let mesh = meshes.add(Mesh::from(&axes));
+    commands.spawn((
+        axes,
+        Mesh2d(mesh),
+        MeshMaterial2d(materials.add(Color::xyz(0.8, 0.8, 0.8))),
+        overlay_layer.clone(),
+    ));
 
     let font = asset_server.load("/s/FiraMono-Medium.ttf");
     // Bevy does not support woff2 see https://github.com/bevyengine/bevy/issues/12194
     // let font = asset_server.load("/s/FiraMono-Medium.woff2");
-    let text_style = TextStyle {
+    let text_style = TextFont {
         font,
         font_size: 16.0,
-        color: Color::WHITE,
+        ..default()
     };
     commands
         .spawn((
-            MaterialMesh2dBundle {
-                mesh: meshes.add(new_crosshair_mesh()).into(),
-                material: materials.add(ColorMaterial::from(Color::WHITE)),
-                ..default()
-            },
-            RenderLayers::layer(1),
+            Crosshair {},
+            Transform::default(),
+            Visibility::Hidden,
+            Mesh2d(meshes.add(new_crosshair_mesh())),
+            MeshMaterial2d(materials.add(ColorMaterial::from(Color::WHITE))),
+            overlay_layer,
         ))
-        .insert(Crosshair {})
-        .insert(Text2dBundle {
-            text: Text::from_section("x, y", text_style),
-            transform: Transform {
-                translation: Vec3 {
-                    x: 70.0,
-                    y: 8.0,
-                    z: 1.0,
-                },
-                ..default()
-            },
-            ..default()
-        })
-        .insert(Visibility::Hidden);
+        .with_children(|builder| {
+            builder.spawn((
+                Text2d::new("x, y"),
+                text_style,
+                Transform::from_xyz(70.0, 8.0, 1.0),
+            ));
+        });
 }
 
 fn new_crosshair_mesh() -> Mesh {
@@ -466,7 +451,7 @@ pub struct Size {
     pub height: f32,
 }
 
-#[derive(Debug, Component, Clone)]
+#[derive(Clone, Component, Debug)]
 pub struct Axes {
     x: Scale,
     y: Scale,
@@ -711,10 +696,11 @@ fn on_mousemotion(
     mut cameras: Query<(&mut Camera, &mut Transform, &mut GlobalTransform), With<SceneCamera>>,
     graphs: Query<(&GraphPoints, &GraphLabels, &GraphName)>,
     windows: Query<&Window, With<PrimaryWindow>>,
-    mut cursor: Query<
-        (&Crosshair, &mut Transform, &mut Text, &mut Visibility),
-        Without<SceneCamera>,
+    mut crosshair: Query<
+        (&mut Transform, &mut Visibility),
+        (With<Crosshair>, Without<SceneCamera>),
     >,
+    // mut crosshair_label: Query<(&mut Text, &mut Transform), (With<Crosshair>, Without<SceneCamera>, Without<Mesh2d>)>,
 ) {
     let window = windows
         .get_single()
@@ -729,12 +715,17 @@ fn on_mousemotion(
             camera_transform.translation += Vec3::new(x, y, 0.0);
         }
 
-        if let Some(scene_position) = window
-            .cursor_position()
-            .and_then(|c| camera.viewport_to_world_2d(&camera_global_transform, c))
-        {
-            let (_, mut crosshair, mut text, mut visibility) =
-                cursor.get_single_mut().expect("could not get crosshair");
+        if let Some(scene_position) = window.cursor_position().and_then(|c| {
+            camera
+                .viewport_to_world_2d(&camera_global_transform, c)
+                .ok()
+        }) {
+            let (mut position, mut visibility) =
+                crosshair.get_single_mut().expect("could not get crosshair");
+            debug!("position = {:?}, visibility = {:?}", position, visibility);
+
+            // let (mut text, mut label_position) = crosshair_label.get_single_mut().expect("could not get crosshair label");
+
             *visibility = Visibility::Hidden;
 
             let close_points = graphs.iter().filter_map(|(points, labels, name)| {
@@ -750,24 +741,33 @@ fn on_mousemotion(
             });
 
             if let Some(((index, _, Vec2 { x: px, y: py }), labels, name)) = closest_point {
-                if let Some(highlighted_position) = camera.world_to_viewport(
-                    &camera_global_transform,
-                    Vec3 {
-                        x: px,
-                        y: py,
-                        z: 0.0,
-                    },
-                ) {
-                    crosshair.translation.x = highlighted_position.x - window.width() / 2.0;
-                    crosshair.translation.y = window.height() / 2.0 - highlighted_position.y;
+                if let Some(highlighted_position) = camera
+                    .world_to_viewport(
+                        &camera_global_transform,
+                        Vec3 {
+                            x: px,
+                            y: py,
+                            z: 0.0,
+                        },
+                    )
+                    .ok()
+                {
+                    *visibility = Visibility::Visible;
+
+                    position.translation.x = highlighted_position.x - window.width() / 2.0;
+                    position.translation.y = window.height() / 2.0 - highlighted_position.y;
+
+                    tracing::trace!(
+                        "c.x = {}, c.y = {}",
+                        position.translation.x,
+                        position.translation.y
+                    );
 
                     let label = labels.0.get(index).unwrap();
-                    // FIXME: hack right now to pad text away from the crosshair, perhaps need a
-                    // parent child relationship here so we can position text relative to
-                    // cursor?
-                    text.sections[0].value =
-                        format!("    {} = {}, {:.2}", name.0, label.0, label.1);
-                    *visibility = Visibility::Visible;
+                    // text.0 = format!("{} = {}, {:.2}", name.0, label.0, label.1);
+                    //
+                    // label_position.translation.x = 80.0;
+                    // label_position.translation.y = 20.0;
                 }
             }
         }
@@ -793,15 +793,15 @@ fn find_closest_point<'a>(
 
 fn on_resize(
     mut resize_reader: EventReader<WindowResized>,
-    mut axes: Query<(&mut Axes, &Handle<Mesh>)>,
+    mut axes: Query<(&mut Axes, &Mesh2d)>,
     mut meshes: ResMut<Assets<Mesh>>,
 ) {
-    let (mut axes, handle) = axes.get_single_mut().unwrap();
+    let (mut axes, mesh) = axes.get_single_mut().unwrap();
     for e in resize_reader.read() {
         axes.view_size.width = e.width;
         axes.view_size.height = e.height;
 
-        let mesh = meshes.get_mut(handle).unwrap();
+        let mesh = meshes.get_mut(mesh).unwrap();
         axes.update(mesh);
     }
 }
