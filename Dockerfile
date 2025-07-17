@@ -1,9 +1,9 @@
-FROM rust:1.79 AS build
+FROM rust:1.88 AS build
 WORKDIR /usr/src
 
 # Install build dependencies
 RUN USER=root rustup target add wasm32-unknown-unknown
-RUN USER=root cargo install wasm-bindgen-cli
+RUN USER=root cargo install --locked wasm-bindgen-cli
 
 WORKDIR /usr/src/nchoputa
 COPY ./ ./
