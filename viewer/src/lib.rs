@@ -17,7 +17,7 @@ use bevy::{
     render::view::visibility::RenderLayers,
     window::{PresentMode, PrimaryWindow, WindowResized},
 };
-use bevy_egui::{egui, EguiContexts, EguiPlugin};
+use bevy_egui::{egui, EguiContexts, EguiPlugin, EguiPrimaryContextPass};
 use chrono::NaiveDate;
 use postcard::from_bytes;
 use serde::{Deserialize, Serialize};
@@ -84,7 +84,7 @@ pub fn main() {
     //     update_subscriber: None,
     // }))
     .insert_resource(State::new())
-    .add_plugins(EguiPlugin)
+    .add_plugins(EguiPlugin::default())
     .add_systems(Startup, setup)
     .add_systems(
         Update,
@@ -92,11 +92,11 @@ pub fn main() {
             on_resize,
             graph_added_listener,
             graph_removed_listener,
-            ui,
             on_mousewheel,
             on_mousemotion,
         ),
     )
+    .add_systems(EguiPrimaryContextPass, ui)
     .add_event::<EventGraphAdded>()
     .add_event::<EventGraphRemoved>()
     .run();
@@ -192,7 +192,7 @@ fn ui(
             .movable(true)
             .auto_sized()
             .anchor(egui::Align2::RIGHT_TOP, [-100.0, 100.0])
-            .show(egui_context.ctx_mut(), |ui| {
+            .show(egui_context.ctx_mut().unwrap(), |ui| {
                 let graph_list = graph_list.lock().unwrap();
                 ui.group(|ui| {
                     ui.label("Sea Level");
@@ -246,7 +246,7 @@ fn ui(
 
     let mut loaded_graphs = state.loaded_graphs.lock().unwrap();
     for (name, graph) in loaded_graphs.iter() {
-        added_events.send(EventGraphAdded {
+        added_events.write(EventGraphAdded {
             graph_name: name.to_string(),
             graph: graph.clone(),
         });
@@ -255,7 +255,7 @@ fn ui(
 
     let mut unloaded_graphs = state.unloaded_graphs.lock().unwrap();
     for graph_name in unloaded_graphs.iter() {
-        removed_events.send(EventGraphRemoved {
+        removed_events.write(EventGraphRemoved {
             graph_name: graph_name.clone(),
         });
     }
@@ -304,15 +304,13 @@ fn graph_added_listener(
             .insert(GraphLabels(graph_labels));
 
         // Recalculate the scales
-        let (mut axes, mesh) = axes.get_single_mut().unwrap();
+        let (mut axes, mesh) = axes.single_mut().unwrap();
         axes.x.min = date_scale(&event.graph.min_x());
         axes.x.max = date_scale(&event.graph.max_x());
         axes.y.min = event.graph.min_y();
         axes.y.max = event.graph.max_y();
 
-        let mut camera = cameras
-            .get_single_mut()
-            .expect("could not find scene camera");
+        let mut camera = cameras.single_mut().expect("could not find scene camera");
 
         // Reposition the camera to center over the graph
         let camera_x = axes.x.min + (axes.x.max - axes.x.min) / 2.0;
@@ -337,7 +335,7 @@ fn graph_removed_listener(
     for event in events.read() {
         for graph in graphs.iter() {
             if graph.1 .0 == event.graph_name {
-                commands.entity(graph.0).despawn_recursive();
+                commands.entity(graph.0).despawn();
             }
         }
     }
@@ -676,9 +674,7 @@ fn on_mousewheel(
 ) {
     let span = 16.0;
     for e in event_reader.read() {
-        let mut camera = cameras
-            .get_single_mut()
-            .expect("could not find scene camera");
+        let mut camera = cameras.single_mut().expect("could not find scene camera");
 
         let factor = if e.y >= 0.0 {
             e.y / span
@@ -702,12 +698,10 @@ fn on_mousemotion(
     >,
     // mut crosshair_label: Query<(&mut Text, &mut Transform), (With<Crosshair>, Without<SceneCamera>, Without<Mesh2d>)>,
 ) {
-    let window = windows
-        .get_single()
-        .expect("could not get the primary window");
+    let window = windows.single().expect("could not get the primary window");
 
     for e in event_reader.read() {
-        let (camera, mut camera_transform, camera_global_transform) = cameras.single_mut();
+        let (camera, mut camera_transform, camera_global_transform) = cameras.single_mut().unwrap();
 
         if mouse_button_input.pressed(MouseButton::Middle) {
             let x = -e.delta.x * camera_transform.scale.x;
@@ -721,10 +715,10 @@ fn on_mousemotion(
                 .ok()
         }) {
             let (mut position, mut visibility) =
-                crosshair.get_single_mut().expect("could not get crosshair");
+                crosshair.single_mut().expect("could not get crosshair");
             debug!("position = {:?}, visibility = {:?}", position, visibility);
 
-            // let (mut text, mut label_position) = crosshair_label.get_single_mut().expect("could not get crosshair label");
+            // let (mut text, mut label_position) = crosshair_label.single_mut().expect("could not get crosshair label");
 
             *visibility = Visibility::Hidden;
 
@@ -740,7 +734,7 @@ fn on_mousemotion(
                 e
             });
 
-            if let Some(((index, _, Vec2 { x: px, y: py }), labels, name)) = closest_point {
+            if let Some(((index, _, Vec2 { x: px, y: py }), labels, _name)) = closest_point {
                 if let Some(highlighted_position) = camera
                     .world_to_viewport(
                         &camera_global_transform,
@@ -796,7 +790,7 @@ fn on_resize(
     mut axes: Query<(&mut Axes, &Mesh2d)>,
     mut meshes: ResMut<Assets<Mesh>>,
 ) {
-    let (mut axes, mesh) = axes.get_single_mut().unwrap();
+    let (mut axes, mesh) = axes.single_mut().unwrap();
     for e in resize_reader.read() {
         axes.view_size.width = e.width;
         axes.view_size.height = e.height;
