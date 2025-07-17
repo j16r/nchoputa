@@ -45,7 +45,7 @@ struct Row {
 }
 
 fn points_from_tsv(path: &str) -> Result<Points> {
-    let file = File::open(format!("data/{}.tsv", path))?;
+    let file = File::open(format!("data/{path}.tsv"))?;
     let mut rdr = csv::ReaderBuilder::new().delimiter(b'\t').from_reader(file);
     let mut points = Vec::new();
     for result in rdr.deserialize() {

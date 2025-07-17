@@ -20,9 +20,7 @@ async fn favicon() -> Result<fs::NamedFile> {
 async fn list_graphs() -> impl Responder {
     let list: Vec<GraphSummary> = graphs::INDEX
         .read()
-        .unwrap()
-        .iter()
-        .map(|(_, graph)| GraphSummary {
+        .unwrap().values().map(|graph| GraphSummary {
             name: graph.name.to_string(),
             uri: format!("/api/graphs/{}", graph.name),
             description: graph.description.to_string(),
@@ -59,7 +57,7 @@ async fn show_graph(name: web::Path<String>) -> Result<impl Responder> {
                 points,
             }
         }
-        _ => return Err(error::ErrorNotFound(format!("no graph with name {}", name))),
+        _ => return Err(error::ErrorNotFound(format!("no graph with name {name}"))),
     };
 
     to_allocvec(&graph).map_err(|e| {
