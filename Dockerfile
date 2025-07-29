@@ -11,7 +11,7 @@ RUN target=release make
 
 # Copy the statically-linked binary into a final minimal container
 # FROM scratch
-FROM debian:buster-slim
+FROM debian:bullseye-slim
 
 WORKDIR /opt
 COPY --from=build /usr/src/nchoputa/target/release/nchoputa .
