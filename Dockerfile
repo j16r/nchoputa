@@ -16,6 +16,7 @@ FROM debian:bookworm-slim
 WORKDIR /opt
 COPY --from=build /usr/src/nchoputa/target/release/nchoputa .
 COPY static ./static/
+COPY data ./data/
 COPY --from=build /usr/src/nchoputa/static/viewer* ./static/
 
 USER 1000
